@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,14 +10,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
-import { ArrowRight, MessageCirclePlus, MessagesSquare, Tag } from "lucide-react";
+import { ArrowRight, MessageCirclePlus, Send, Inbox, CheckCircle } from "lucide-react";
 
-type RequestItem = {
+type QueueRequest = {
   id: string;
   prompt: string;
-  requester_id: string;
   created_at: string;
-  claimsCount: number;
+  answersCount: number;
+};
+
+type MyRequest = {
+  id: string;
+  prompt: string;
+  created_at: string;
+  answersCount: number;
+  best_answer_id: string | null;
+};
+
+type MyAnswerEntry = {
+  request_id: string;
+  prompt: string;
+  created_at: string;
 };
 
 export default function RequestsPage() {
@@ -28,107 +41,150 @@ export default function RequestsPage() {
   const [prompt, setPrompt] = useState("");
   const [creating, setCreating] = useState(false);
 
-  const [requests, setRequests] = useState<RequestItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [queueForYou, setQueueForYou] = useState<QueueRequest[]>([]);
+  const [myRequests, setMyRequests] = useState<MyRequest[]>([]);
+  const [myAnswers, setMyAnswers] = useState<MyAnswerEntry[]>([]);
+  const [loadingQueue, setLoadingQueue] = useState(false);
+  const [loadingMine, setLoadingMine] = useState(false);
   const [status, setStatus] = useState("");
+
+  const loadQueue = useCallback(async (uid: string) => {
+    setLoadingQueue(true);
+    setStatus("");
+    const { data: answeredRows } = await supabase
+      .from("qna_answers")
+      .select("request_id")
+      .eq("responder_id", uid);
+    const answeredIds = new Set((answeredRows ?? []).map((r: any) => r.request_id));
+    const { data, error } = await supabase
+      .from("qna_requests")
+      .select("id, prompt, created_at, qna_answers(id)")
+      .is("best_answer_id", null)
+      .neq("requester_id", uid)
+      .order("created_at", { ascending: true })
+      .limit(50);
+    if (error) {
+      setStatus("Failed to load requests: " + error.message);
+      setLoadingQueue(false);
+      return;
+    }
+    const withCount = (data ?? []).map((row: any) => ({
+      id: row.id,
+      prompt: row.prompt,
+      created_at: row.created_at,
+      answersCount: (row.qna_answers ?? []).length,
+    }));
+    const filtered = withCount.filter((r) => !answeredIds.has(r.id)).slice(0, 3);
+    setQueueForYou(filtered);
+    setLoadingQueue(false);
+  }, []);
+
+  const loadMyRequests = useCallback(async (uid: string) => {
+    const { data, error } = await supabase
+      .from("qna_requests")
+      .select("id, prompt, created_at, best_answer_id, qna_answers(id)")
+      .eq("requester_id", uid)
+      .order("created_at", { ascending: false });
+    if (error) {
+      setStatus("Failed to load my requests: " + error.message);
+      return;
+    }
+    setMyRequests(
+      (data ?? []).map((row: any) => ({
+        id: row.id,
+        prompt: row.prompt,
+        created_at: row.created_at,
+        answersCount: (row.qna_answers ?? []).length,
+        best_answer_id: row.best_answer_id ?? null,
+      }))
+    );
+  }, []);
+
+  const loadMyAnswers = useCallback(async (uid: string) => {
+    const { data: ansRows, error: ansError } = await supabase
+      .from("qna_answers")
+      .select("request_id")
+      .eq("responder_id", uid)
+      .order("created_at", { ascending: false });
+    if (ansError || !ansRows?.length) {
+      setMyAnswers([]);
+      return;
+    }
+    const reqIds = [...new Set(ansRows.map((r: any) => r.request_id))];
+    const { data: reqData } = await supabase
+      .from("qna_requests")
+      .select("id, prompt, created_at")
+      .in("id", reqIds);
+    const byId: Record<string, { prompt: string; created_at: string }> = {};
+    (reqData ?? []).forEach((r: any) => {
+      byId[r.id] = { prompt: r.prompt, created_at: r.created_at };
+    });
+    const seen = new Set<string>();
+    setMyAnswers(
+      ansRows
+        .filter((r: any) => {
+          if (seen.has(r.request_id)) return false;
+          seen.add(r.request_id);
+          return true;
+        })
+        .map((r: any) => ({
+          request_id: r.request_id,
+          prompt: byId[r.request_id]?.prompt ?? "",
+          created_at: byId[r.request_id]?.created_at ?? "",
+        }))
+    );
+  }, []);
 
   useEffect(() => {
     async function boot() {
-      // 인증 유저 확인 (RLS 에서 requester_id 를 맞추기 위해 필요)
       const { data } = await supabase.auth.getUser();
       const uid = data.user?.id ?? null;
       setUserId(uid);
       setAuthChecked(true);
-
-      // 보호된 페이지: 로그인 안 했으면 /login 으로 리다이렉트
       if (!uid) {
         router.replace("/login");
         return;
       }
-
-      await loadRequests();
+      setLoadingMine(true);
+      await loadQueue(uid);
+      await loadMyRequests(uid);
+      await loadMyAnswers(uid);
+      setLoadingMine(false);
     }
-
-    async function loadRequests() {
-      setLoading(true);
-      setStatus("");
-
-      const { data, error } = await supabase
-        .from("qna_requests")
-        .select(
-          "id, prompt, requester_id, created_at, best_answer_id, qna_claims(id)"
-        )
-        .is("best_answer_id", null)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        setStatus("요청 목록을 불러오지 못했어: " + error.message);
-        setLoading(false);
-        return;
-      }
-
-      const mapped: RequestItem[] =
-        data?.map((row: any) => ({
-          id: row.id,
-          prompt: row.prompt,
-          requester_id: row.requester_id,
-          created_at: row.created_at,
-          claimsCount: (row.qna_claims ?? []).length,
-        })) ?? [];
-
-      setRequests(mapped);
-      setLoading(false);
-    }
-
     boot();
-  }, [router]);
+  }, [router, loadQueue, loadMyRequests, loadMyAnswers]);
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     setStatus("");
-
     if (!userId) {
-      setStatus("요청을 만들려면 로그인해야 해.");
+      setStatus("You must be logged in to create a request.");
       return;
     }
     if (!prompt.trim()) {
-      setStatus("프롬프트를 적어줘.");
+      setStatus("Please enter a prompt.");
       return;
     }
-
     setCreating(true);
     const { error } = await supabase.from("qna_requests").insert({
       prompt: prompt.trim(),
       requester_id: userId,
     });
-
     if (error) {
-      setStatus("요청 생성에 실패했어: " + error.message);
+      setStatus("Failed to create request: " + error.message);
       setCreating(false);
       return;
     }
-
     setPrompt("");
-    setStatus("요청이 생성되었어.");
+    setStatus("Request created.");
     setCreating(false);
+    await loadMyRequests(userId);
+  }
 
-    // 새 요청 포함해서 다시 불러오기
-    const { data, error: reloadError } = await supabase
-      .from("qna_requests")
-      .select("id, prompt, requester_id, created_at, best_answer_id, qna_claims(id)")
-      .is("best_answer_id", null)
-      .order("created_at", { ascending: false });
-
-    if (!reloadError && data) {
-      const mapped: RequestItem[] = data.map((row: any) => ({
-        id: row.id,
-        prompt: row.prompt,
-        requester_id: row.requester_id,
-        created_at: row.created_at,
-        claimsCount: (row.qna_claims ?? []).length,
-      }));
-      setRequests(mapped);
-    }
+  function myRequestStatus(req: MyRequest): { label: string; variant: "secondary" | "default" | "success" } {
+    if (req.best_answer_id) return { label: "Best selected", variant: "success" };
+    if (req.answersCount > 0) return { label: "Choose best", variant: "default" };
+    return { label: "Awaiting answers", variant: "secondary" };
   }
 
   return (
@@ -137,7 +193,7 @@ export default function RequestsPage() {
         <div className="space-y-2">
           <h1 className="text-2xl font-extrabold tracking-tight">Requests</h1>
           <p className="text-sm text-muted-foreground">
-            곡 추천이 필요할 때 요청을 남기고, 다른 사람의 요청에 Reco를 남겨봐.
+            Ask for a Reco or answer others&apos; requests. Your requests and answers appear below.
           </p>
         </div>
 
@@ -145,14 +201,14 @@ export default function RequestsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Loading</CardTitle>
-              <CardDescription>세션을 확인하는 중이야...</CardDescription>
+              <CardDescription>Checking your session…</CardDescription>
             </CardHeader>
           </Card>
         ) : !userId ? (
           <Card>
             <CardHeader>
               <CardTitle>Redirecting</CardTitle>
-              <CardDescription>로그인 페이지로 이동하는 중이야...</CardDescription>
+              <CardDescription>Sending you to the login page…</CardDescription>
             </CardHeader>
           </Card>
         ) : (
@@ -165,7 +221,7 @@ export default function RequestsPage() {
                     Ask for a Reco
                   </CardTitle>
                   <CardDescription>
-                    상황이나 기분을 설명하면, 다른 사람들이 곡을 추천해 줄 거야.
+                    Describe your mood or situation and others can recommend a track.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -173,24 +229,15 @@ export default function RequestsPage() {
                     <Textarea
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
-                      placeholder="예: 밤에 집중해서 코딩할 때 들을 곡 추천해줘."
+                      placeholder="e.g. A song for late-night coding."
                     />
-                    <div className="flex items-center gap-2">
-                      <Button type="submit" disabled={creating}>
-                        {creating ? "Creating..." : "Create request"}
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
-                      <Badge variant="secondary" className="gap-1">
-                        <Tag className="h-3.5 w-3.5" />
-                        max 3 claimers
-                      </Badge>
-                    </div>
+                    <Button type="submit" disabled={creating}>
+                      {creating ? "Creating…" : "Create request"}
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
                   </form>
-
                   {status ? (
-                    <div className="rounded-2xl border border-border bg-accent px-4 py-3 text-sm">
-                      {status}
-                    </div>
+                    <div className="rounded-2xl border border-border bg-accent px-4 py-3 text-sm">{status}</div>
                   ) : null}
                 </CardContent>
               </Card>
@@ -200,58 +247,146 @@ export default function RequestsPage() {
               <CardHeader>
                 <div className="flex items-center justify-between gap-3">
                   <CardTitle className="flex items-center gap-2">
-                    <MessagesSquare className="h-4 w-4 text-primary" />
-                    Open requests
+                    <Inbox className="h-4 w-4 text-primary" />
+                    Requests for you
                   </CardTitle>
-                  <Badge variant="secondary">{loading ? "Loading..." : `${requests.length}`}</Badge>
+                  <Badge variant="secondary">
+                    {loadingQueue ? "…" : `${queueForYou.length} of 3`}
+                  </Badge>
                 </div>
-                <CardDescription>Newest first · open only</CardDescription>
+                <CardDescription>
+                  Up to 3 open requests you haven&apos;t answered yet (oldest first). Answer from the detail page.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                {loading && !requests.length ? (
-                  <div className="text-sm text-muted-foreground">요청 목록을 불러오는 중이야...</div>
-                ) : !requests.length ? (
+                {loadingQueue && !queueForYou.length ? (
+                  <div className="text-sm text-muted-foreground">Loading…</div>
+                ) : queueForYou.length === 0 ? (
                   <EmptyState
-                    icon={MessagesSquare}
-                    title="No requests yet"
-                    description="첫 번째 요청을 남겨서 추천을 받아볼래?"
+                    icon={Inbox}
+                    title="No requests for you right now"
+                    description="Check back later or ask for a Reco above."
                   />
                 ) : (
-                  <motion.div
-                    initial="hidden"
-                    animate="show"
-                    variants={{
-                      hidden: { opacity: 0, y: 10 },
-                      show: { opacity: 1, y: 0, transition: { staggerChildren: 0.05 } },
-                    }}
-                    className="grid gap-3 md:grid-cols-2"
-                  >
-                    {requests.map((req) => (
-                      <motion.div
-                        key={req.id}
-                        variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
-                        whileHover={{ scale: 1.01 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        <Card className="h-full">
-                          <CardHeader className="space-y-2">
-                            <div className="flex items-start justify-between gap-3">
-                              <CardTitle className="text-base leading-6">{req.prompt}</CardTitle>
-                              <Badge variant="secondary">Claims {req.claimsCount}/3</Badge>
-                            </div>
-                            <CardDescription>{new Date(req.created_at).toLocaleString()}</CardDescription>
-                          </CardHeader>
-                          <CardContent className="pt-0">
-                            <Button variant="outline" size="sm" asChild className="w-full">
-                              <Link href={`/requests/${req.id}`}>
-                                View <ArrowRight className="h-4 w-4" />
-                              </Link>
+                  <ul className="grid gap-3 md:grid-cols-3">
+                    {queueForYou.map((req) => (
+                      <li key={req.id}>
+                        <motion.div
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.15 }}
+                          whileHover={{ scale: 1.01 }}
+                        >
+                          <Card className="h-full">
+                            <CardHeader className="space-y-2">
+                              <CardTitle className="text-sm font-medium leading-snug line-clamp-2">
+                                {req.prompt}
+                              </CardTitle>
+                              <CardDescription className="text-xs">
+                                {new Date(req.created_at).toLocaleString()}
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent className="pt-0">
+                              <Button variant="outline" size="sm" asChild className="w-full">
+                                <Link href={`/requests/${req.id}`}>
+                                  View & answer <ArrowRight className="ml-1 h-3 w-3" />
+                                </Link>
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="flex items-center gap-2">
+                    <Send className="h-4 w-4 text-primary" />
+                    My Requests
+                  </CardTitle>
+                  <Badge variant="secondary">{myRequests.length}</Badge>
+                </div>
+                <CardDescription>Requests you created. Open one to choose a Best Reco.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingMine && !myRequests.length ? (
+                  <div className="text-sm text-muted-foreground">Loading…</div>
+                ) : myRequests.length === 0 ? (
+                  <EmptyState
+                    icon={Send}
+                    title="No requests yet"
+                    description="Create a request above to get recommendations."
+                  />
+                ) : (
+                  <ul className="space-y-2">
+                    {myRequests.map((req) => {
+                      const { label, variant } = myRequestStatus(req);
+                      return (
+                        <li key={req.id}>
+                          <Card>
+                            <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium leading-snug">{req.prompt}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {new Date(req.created_at).toLocaleString()} · {req.answersCount} answer(s)
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={variant}>{label}</Badge>
+                                <Button variant="outline" size="sm" asChild>
+                                  <Link href={`/requests/${req.id}`}>View</Link>
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-primary" />
+                    My Answers
+                  </CardTitle>
+                  <Badge variant="secondary">{myAnswers.length}</Badge>
+                </div>
+                <CardDescription>Requests you answered. Open to see if your Reco was chosen.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingMine && !myAnswers.length ? (
+                  <div className="text-sm text-muted-foreground">Loading…</div>
+                ) : myAnswers.length === 0 ? (
+                  <EmptyState
+                    icon={CheckCircle}
+                    title="No answers yet"
+                    description="Answer a request from &quot;Requests for you&quot; and it will appear here."
+                  />
+                ) : (
+                  <ul className="space-y-2">
+                    {myAnswers.map((entry) => (
+                      <li key={entry.request_id}>
+                        <Card>
+                          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+                            <p className="min-w-0 flex-1 font-medium leading-snug line-clamp-2">{entry.prompt}</p>
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/requests/${entry.request_id}`}>View</Link>
                             </Button>
                           </CardContent>
                         </Card>
-                      </motion.div>
+                      </li>
                     ))}
-                  </motion.div>
+                  </ul>
                 )}
               </CardContent>
             </Card>
@@ -261,4 +396,3 @@ export default function RequestsPage() {
     </main>
   );
 }
-

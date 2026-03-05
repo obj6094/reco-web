@@ -261,15 +261,15 @@ export default function ProfilePage() {
                   <User className="h-4 w-4 text-primary" />
                   Account
                 </CardTitle>
-                <CardDescription>
-                  {username ? `@${username}` : "Username not set yet."}
-                </CardDescription>
+                <CardDescription>Your profile. Nickname is editable.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Username</label>
+                  <p className="text-sm font-medium">{username ? `@${username}` : "—"}</p>
+                </div>
                 <form onSubmit={handleNicknameSave} className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">
-                    Nickname
-                  </label>
+                  <label className="text-xs font-medium text-muted-foreground">Nickname</label>
                   <Input
                     value={nickname}
                     onChange={(e) => setNickname(e.target.value)}
@@ -279,9 +279,6 @@ export default function ProfilePage() {
                     {nicknameSaving ? "Saving…" : "Save"}
                   </Button>
                 </form>
-                <div className="pt-2 text-xs text-muted-foreground">
-                  Email (not public): {email ?? "Unknown"}
-                </div>
                 <Button
                   type="button"
                   variant="outline"
@@ -397,7 +394,7 @@ export default function ProfilePage() {
               </CardTitle>
               <Badge variant="secondary">{answers.length}</Badge>
             </div>
-            <CardDescription>내가 남긴 QnA 답변들</CardDescription>
+            <CardDescription>Your QnA answers.</CardDescription>
           </CardHeader>
           <CardContent>
             {loading && !answers.length ? (

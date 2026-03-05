@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
-import { ArrowRight, Search, ThumbsUp, Trophy, Music2, Sparkles } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, Play, Search, ThumbsUp, Trophy, Music2 } from "lucide-react";
 
 type Track = {
   id: string;
@@ -24,6 +24,7 @@ type Track = {
 type Submission = {
   id: string;
   user_id: string;
+  spotify_track_id: string | null;
   trackName: string;
   artistName: string;
   albumImage: string | null;
@@ -32,6 +33,15 @@ type Submission = {
   voteCount: number;
   viewerVoted: boolean;
   isMine: boolean;
+  submitterNickname: string | null;
+  submitterUsername: string | null;
+};
+
+type PastChallengeItem = {
+  id: string;
+  prompt: string;
+  starts_at: string | null;
+  topSubmissions: { trackName: string; artistName: string; albumImage: string | null; comment: string | null; voteCount: number }[];
 };
 
 export default function ChallengePage() {
@@ -57,6 +67,11 @@ export default function ChallengePage() {
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
   const [mySubmission, setMySubmission] = useState<Submission | null>(null);
   const [votingOnId, setVotingOnId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"votes" | "recent">("votes");
+  const [expandedPlayId, setExpandedPlayId] = useState<string | null>(null);
+  const [pastChallenges, setPastChallenges] = useState<PastChallengeItem[]>([]);
+  const [expandedPastId, setExpandedPastId] = useState<string | null>(null);
+  const [loadingPast, setLoadingPast] = useState(false);
 
   const embedUrl = useMemo(() => {
     if (!selected) return null;
@@ -85,9 +100,9 @@ export default function ChallengePage() {
         .limit(1)
         .single();
 
-      if (error) {
-        setStatus("챌린지를 불러오지 못했어: " + error.message);
-      } else {
+    if (error) {
+      setStatus("Failed to load challenge: " + error.message);
+    } else {
         setChallenge(data);
       }
 
@@ -109,17 +124,17 @@ export default function ChallengePage() {
       const { data, error } = await supabase
         .from("challenge_submissions")
         .select(
-          "id, challenge_id, user_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at, challenge_votes(id, voter_id)"
+          "id, challenge_id, user_id, spotify_track_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at, challenge_votes(id, voter_id)"
         )
         .eq("challenge_id", challenge.id);
 
       if (error) {
-        setStatus("제출 목록을 불러오지 못했어: " + error.message);
+        setStatus("Failed to load submissions: " + error.message);
         setLoadingSubmissions(false);
         return;
       }
 
-      const mapped: Submission[] =
+      const rawMapped: Omit<Submission, "submitterNickname" | "submitterUsername">[] =
         data?.map((row: any) => {
           const votes = row.challenge_votes ?? [];
           const voteCount = votes.length;
@@ -128,6 +143,7 @@ export default function ChallengePage() {
           return {
             id: row.id,
             user_id: row.user_id,
+            spotify_track_id: row.spotify_track_id ?? null,
             trackName: row.spotify_track_name,
             artistName: row.spotify_artist_name,
             albumImage: row.spotify_album_image_url,
@@ -139,7 +155,24 @@ export default function ChallengePage() {
           };
         }) ?? [];
 
-      // 정렬: 투표 수 desc, created_at desc
+      const userIds = [...new Set(rawMapped.map((r) => r.user_id).filter(Boolean))] as string[];
+      let profileMap: Record<string, { nickname: string | null; username: string | null }> = {};
+      if (userIds.length) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, username, nickname")
+          .in("id", userIds);
+        profiles?.forEach((p: any) => {
+          profileMap[p.id] = { nickname: p.nickname ?? null, username: p.username ?? null };
+        });
+      }
+
+      const mapped: Submission[] = rawMapped.map((r) => ({
+        ...r,
+        submitterNickname: profileMap[r.user_id]?.nickname ?? null,
+        submitterUsername: profileMap[r.user_id]?.username ?? null,
+      }));
+
       mapped.sort((a, b) => {
         if (b.voteCount !== a.voteCount) return b.voteCount - a.voteCount;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -160,6 +193,56 @@ export default function ChallengePage() {
     });
   }
 
+  const sortedSubmissions = useMemo(() => {
+    if (sortBy === "votes") return sortSubmissions(submissions);
+    return [...submissions].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [submissions, sortBy]);
+
+  function challengeDuration(startsAt: string | null): string {
+    if (!startsAt) return "";
+    const start = new Date(startsAt);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    return `${start.toLocaleDateString()} → ${end.toLocaleDateString()}`;
+  }
+
+  useEffect(() => {
+    if (!challenge?.id) return;
+    async function loadPast() {
+      setLoadingPast(true);
+      const { data: allChallenges } = await supabase
+        .from("weekly_challenges")
+        .select("id, prompt, starts_at")
+        .order("starts_at", { ascending: false })
+        .limit(11);
+      const past = (allChallenges ?? []).filter((c: any) => c.id !== challenge.id).slice(0, 10);
+      if (past.length === 0) {
+        setPastChallenges([]);
+        setLoadingPast(false);
+        return;
+      }
+      const pastIds = past.map((c: any) => c.id);
+      const { data: subRows } = await supabase
+        .from("challenge_submissions")
+        .select("id, challenge_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at, challenge_votes(id)")
+        .in("challenge_id", pastIds);
+      const byChallenge: Record<string, { trackName: string; artistName: string; albumImage: string | null; comment: string | null; voteCount: number }[]> = {};
+      past.forEach((c: any) => { byChallenge[c.id] = []; });
+      (subRows ?? []).forEach((row: any) => {
+        const voteCount = (row.challenge_votes ?? []).length;
+        const arr = byChallenge[row.challenge_id];
+        if (arr) arr.push({ trackName: row.spotify_track_name, artistName: row.spotify_artist_name, albumImage: row.spotify_album_image_url, comment: row.comment, voteCount });
+      });
+      const items: PastChallengeItem[] = past.map((c: any) => {
+        const list = (byChallenge[c.id] ?? []).sort((a, b) => b.voteCount - a.voteCount).slice(0, 3);
+        return { id: c.id, prompt: c.prompt, starts_at: c.starts_at, topSubmissions: list };
+      });
+      setPastChallenges(items);
+      setLoadingPast(false);
+    }
+    loadPast();
+  }, [challenge?.id]);
+
   async function searchTracks() {
     setStatus("");
     if (!query.trim()) return;
@@ -172,9 +255,9 @@ export default function ChallengePage() {
       const res = await fetch(`/api/spotify/search?q=${encodeURIComponent(query)}`);
       const data = await res.json();
       setTracks(data.tracks ?? []);
-      if (!data.tracks?.length) setStatus("검색 결과가 없어.");
+      if (!data.tracks?.length) setStatus("No results found.");
     } catch (e: any) {
-      setStatus("검색 오류: " + e.message);
+      setStatus("Search error: " + e.message);
     } finally {
       setSearching(false);
     }
@@ -184,16 +267,16 @@ export default function ChallengePage() {
     setStatus("");
     if (!challenge) return;
     if (!userId) {
-      setStatus("제출하려면 로그인해야 해. /login 에서 로그인해줘.");
+      setStatus("You must be logged in to submit. Go to /login.");
       return;
     }
     if (mySubmission) {
       // 서버에서도 unique 제약이 있으나, 클라이언트에서 한 번 더 막아줌
-      setStatus("이미 이 챌린지에 곡을 제출했어. 변경은 안 돼.");
+      setStatus("You already submitted for this challenge. Changes are not allowed.");
       return;
     }
     if (!selected) {
-      setStatus("먼저 곡을 선택해줘.");
+      setStatus("Please select a track first.");
       return;
     }
 
@@ -210,32 +293,32 @@ export default function ChallengePage() {
 
     if (error) {
       // unique(challenge_id, user_id) 때문에 1인 1곡 제한에 걸릴 수 있음
-      setStatus("제출 실패: " + error.message);
+      setStatus("Submit failed: " + error.message);
       return;
     }
 
-    setStatus("✅ 제출 완료!");
+    setStatus("Submitted!");
     setComment("");
     setSelected(null);
 
     // 내 제출/목록 새로고침
     if (challenge) {
-      const { data, error: reloadError } = await supabase
+      const { data: reloadData, error: reloadError } = await supabase
         .from("challenge_submissions")
         .select(
-          "id, challenge_id, user_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at, challenge_votes(id, voter_id)"
+          "id, challenge_id, user_id, spotify_track_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at, challenge_votes(id, voter_id)"
         )
         .eq("challenge_id", challenge.id);
 
-      if (!reloadError && data) {
-        const mapped: Submission[] = data.map((row: any) => {
+      if (!reloadError && reloadData) {
+        const rawReload = reloadData.map((row: any) => {
           const votes = row.challenge_votes ?? [];
           const voteCount = votes.length;
           const viewerVoted = !!userId && votes.some((v: any) => v.voter_id === userId);
-
           return {
             id: row.id,
             user_id: row.user_id,
+            spotify_track_id: row.spotify_track_id ?? null,
             trackName: row.spotify_track_name,
             artistName: row.spotify_artist_name,
             albumImage: row.spotify_album_image_url,
@@ -246,12 +329,21 @@ export default function ChallengePage() {
             isMine: !!userId && row.user_id === userId,
           };
         });
-
+        const uids = [...new Set(rawReload.map((r) => r.user_id).filter(Boolean))] as string[];
+        let pm: Record<string, { nickname: string | null; username: string | null }> = {};
+        if (uids.length) {
+          const { data: profs } = await supabase.from("profiles").select("id, username, nickname").in("id", uids);
+          profs?.forEach((p: any) => { pm[p.id] = { nickname: p.nickname ?? null, username: p.username ?? null }; });
+        }
+        const mapped: Submission[] = rawReload.map((r) => ({
+          ...r,
+          submitterNickname: pm[r.user_id]?.nickname ?? null,
+          submitterUsername: pm[r.user_id]?.username ?? null,
+        }));
         mapped.sort((a, b) => {
           if (b.voteCount !== a.voteCount) return b.voteCount - a.voteCount;
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         });
-
         setSubmissions(mapped);
         setMySubmission(mapped.find((s) => s.isMine) ?? null);
       }
@@ -268,8 +360,7 @@ export default function ChallengePage() {
     }
 
     if (submission.isMine) {
-      // 서버 쿼리 전에 한번 더 막기
-      setStatus("자기 추천에는 투표할 수 없어.");
+      setStatus("You cannot vote for your own submission.");
       return;
     }
 
@@ -304,7 +395,7 @@ export default function ChallengePage() {
           // 실패하면 원복
           setSubmissions(before);
           setMySubmission(before.find((s) => s.isMine) ?? null);
-          setStatus("투표 취소에 실패했어: " + error.message);
+          setStatus("Failed to remove vote: " + error.message);
         }
       } else {
         // 서버 측에서도 본인 제출인지 한 번 더 확인
@@ -317,14 +408,14 @@ export default function ChallengePage() {
         if (ownerError) {
           setSubmissions(before);
           setMySubmission(before.find((s) => s.isMine) ?? null);
-          setStatus("투표 준비 중 오류가 있었어: " + ownerError.message);
+          setStatus("Vote error: " + ownerError.message);
           return;
         }
 
         if (ownerRow?.user_id === userId) {
           setSubmissions(before);
           setMySubmission(before.find((s) => s.isMine) ?? null);
-          setStatus("자기 추천에는 투표할 수 없어.");
+          setStatus("You cannot vote for your own submission.");
           return;
         }
 
@@ -336,29 +427,29 @@ export default function ChallengePage() {
         if (error) {
           setSubmissions(before);
           setMySubmission(before.find((s) => s.isMine) ?? null);
-          setStatus("투표에 실패했어: " + error.message);
+          setStatus("Vote failed: " + error.message);
         }
       }
     } finally {
       setVotingOnId(null);
       // 투표 후 정합성 확보를 위해 목록/카운트 새로고침
       if (challenge && userId) {
-        const { data, error } = await supabase
+        const { data: refetchData, error } = await supabase
           .from("challenge_submissions")
           .select(
-            "id, challenge_id, user_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at, challenge_votes(id, voter_id)"
+            "id, challenge_id, user_id, spotify_track_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at, challenge_votes(id, voter_id)"
           )
           .eq("challenge_id", challenge.id);
 
-        if (!error && data) {
-          const mapped: Submission[] = data.map((row: any) => {
+        if (!error && refetchData) {
+          const raw = refetchData.map((row: any) => {
             const votes = row.challenge_votes ?? [];
             const voteCount = votes.length;
             const viewerVoted = !!userId && votes.some((v: any) => v.voter_id === userId);
-
             return {
               id: row.id,
               user_id: row.user_id,
+              spotify_track_id: row.spotify_track_id ?? null,
               trackName: row.spotify_track_name,
               artistName: row.spotify_artist_name,
               albumImage: row.spotify_album_image_url,
@@ -369,7 +460,17 @@ export default function ChallengePage() {
               isMine: !!userId && row.user_id === userId,
             };
           });
-
+          const uids = [...new Set(raw.map((r) => r.user_id).filter(Boolean))] as string[];
+          let pm: Record<string, { nickname: string | null; username: string | null }> = {};
+          if (uids.length) {
+            const { data: profs } = await supabase.from("profiles").select("id, username, nickname").in("id", uids);
+            profs?.forEach((p: any) => { pm[p.id] = { nickname: p.nickname ?? null, username: p.username ?? null }; });
+          }
+          const mapped: Submission[] = raw.map((r) => ({
+            ...r,
+            submitterNickname: pm[r.user_id]?.nickname ?? null,
+            submitterUsername: pm[r.user_id]?.username ?? null,
+          }));
           const sorted = sortSubmissions(mapped);
           setSubmissions(sorted);
           setMySubmission(sorted.find((s) => s.isMine) ?? null);
@@ -385,7 +486,7 @@ export default function ChallengePage() {
           <Card>
             <CardHeader>
               <CardTitle>Challenge</CardTitle>
-              <CardDescription>이번 주 챌린지를 불러오는 중이야...</CardDescription>
+              <CardDescription>Loading this week&apos;s challenge…</CardDescription>
             </CardHeader>
           </Card>
         </div>
@@ -395,42 +496,36 @@ export default function ChallengePage() {
 
   return (
     <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-10 text-foreground">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <Card>
-          <CardHeader className="space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="h-4 w-4 text-primary" />
-                This Week’s Reco Challenge
-              </CardTitle>
-              <Badge variant="secondary" className="gap-1">
-                <Sparkles className="h-3.5 w-3.5" />
-                Weekly
-              </Badge>
-            </div>
-            <CardDescription className="text-base">{challenge.prompt}</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Button variant="outline" asChild>
-              <Link href="/">
-                Back to Home <ArrowRight className="h-4 w-4" />
+      <div className="mx-auto max-w-5xl space-y-8">
+        <section className="rounded-2xl border border-border bg-card px-6 py-10 md:px-10 md:py-14">
+          <p className="text-xs font-semibold uppercase tracking-widest text-primary">Weekly Challenge</p>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight md:text-4xl lg:text-5xl">
+            {challenge.prompt}
+          </h1>
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            <span className="text-sm text-muted-foreground">
+              {challengeDuration(challenge.starts_at)}
+            </span>
+            <Button asChild>
+              <Link href="#submissions">
+                Submit / Vote <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
         {!authChecked ? (
           <Card>
             <CardHeader>
               <CardTitle>Loading</CardTitle>
-              <CardDescription>세션을 확인하는 중이야...</CardDescription>
+              <CardDescription>Checking your session…</CardDescription>
             </CardHeader>
           </Card>
         ) : !userId ? (
           <Card>
             <CardHeader>
               <CardTitle>Redirecting</CardTitle>
-              <CardDescription>로그인 페이지로 이동하는 중이야...</CardDescription>
+              <CardDescription>Sending you to the login page…</CardDescription>
             </CardHeader>
           </Card>
         ) : (
@@ -440,12 +535,12 @@ export default function ChallengePage() {
                 <Card className="border-primary/60 bg-primary/5">
                   <CardHeader>
                     <div className="flex items-center justify-between gap-3">
-                      <CardTitle>Your Submission</CardTitle>
-                      <Badge variant="success">이미 제출 완료 · 변경 불가</Badge>
+                      <CardTitle className="flex items-center gap-2">
+                      <Trophy className="h-4 w-4 text-primary" />
+                      Your Submission
+                    </CardTitle>
                     </div>
-                    <CardDescription>
-                      이 챌린지는 1인 1곡만 제출할 수 있어. 이번 주에는 곡 변경이 안 돼.
-                    </CardDescription>
+                    <CardDescription>One track per challenge. No changes after submit.</CardDescription>
                   </CardHeader>
                   <CardContent className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4 min-w-0">
@@ -473,13 +568,22 @@ export default function ChallengePage() {
                 </Card>
               </motion.div>
             ) : (
-              <Card>
+              <>
+              <Card id="your-submission">
+                <CardContent className="flex flex-wrap items-center justify-between gap-4 py-6">
+                  <p className="text-muted-foreground">You haven&apos;t submitted yet.</p>
+                  <Button asChild>
+                    <a href="#submit-form">Submit your Reco</a>
+                  </Button>
+                </CardContent>
+              </Card>
+              <Card id="submit-form">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Search className="h-4 w-4 text-primary" />
                     Submit your Reco
                   </CardTitle>
-                  <CardDescription>이번 주 프롬프트에 가장 잘 어울리는 곡을 골라줘.</CardDescription>
+                  <CardDescription>Pick a track that fits this week&apos;s prompt.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex gap-2">
@@ -563,49 +667,62 @@ export default function ChallengePage() {
                   ) : null}
                 </CardContent>
               </Card>
+              </>
             )}
 
-            <Card>
+            <Card id="submissions">
               <CardHeader>
                 <div className="flex items-center justify-between gap-3">
-                  <CardTitle>All submissions</CardTitle>
-                  <Badge variant="secondary">
-                    {loadingSubmissions ? "Loading..." : `${submissions.length} entries`}
-                  </Badge>
+                  <CardTitle>Submissions</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Sort:</span>
+                    <div className="flex rounded-lg border border-border bg-muted/30 p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setSortBy("votes")}
+                        className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                          sortBy === "votes" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Most Voted
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSortBy("recent")}
+                        className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                          sortBy === "recent" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Most Recent
+                      </button>
+                    </div>
+                    <Badge variant="secondary">
+                      {loadingSubmissions ? "…" : `${submissions.length} entries`}
+                    </Badge>
+                  </div>
                 </div>
-                <CardDescription>
-                  투표 수가 많은 제출이 위로 올라가. (votes DESC, created_at DESC)
-                </CardDescription>
               </CardHeader>
               <CardContent>
                 {loadingSubmissions && !submissions.length ? (
-                  <div className="text-sm text-muted-foreground">제출 목록을 불러오는 중이야...</div>
+                  <div className="text-sm text-muted-foreground">Loading submissions…</div>
                 ) : submissions.length === 0 ? (
                   <EmptyState
                     icon={Music2}
                     title="No submissions yet"
-                    description="아직 아무도 곡을 제출하지 않았어. 첫 번째로 올려볼래?"
+                    description="Be the first to submit a track for this week."
                   />
                 ) : (
-                  <motion.div
-                    initial="hidden"
-                    animate="show"
-                    variants={{
-                      hidden: { opacity: 0, y: 10 },
-                      show: { opacity: 1, y: 0, transition: { staggerChildren: 0.05 } },
-                    }}
-                    className="grid gap-3 md:grid-cols-2"
-                  >
-                    {submissions.map((s) => (
-                      <motion.div
-                        key={s.id}
+                  <ul className="grid gap-3 md:grid-cols-2">
+                    {sortedSubmissions.map((s) => (
+                      <li key={s.id}>
+                        <motion.div
                         variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
                         whileHover={{ scale: 1.01 }}
                         transition={{ duration: 0.15 }}
                       >
                         <Card className={s.isMine ? "border-primary/60 bg-primary/5" : ""}>
-                          <CardContent className="flex items-center justify-between gap-4 p-5">
-                            <div className="flex items-center gap-4 min-w-0">
+                          <CardContent className="p-4">
+                            <div className="flex items-start gap-4">
                               <div className="h-14 w-14 overflow-hidden rounded-2xl border border-border bg-card">
                                 {s.albumImage ? (
                                   // eslint-disable-next-line @next/next/no-img-element
@@ -615,17 +732,26 @@ export default function ChallengePage() {
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2">
                                   <div className="truncate text-sm font-semibold">{s.trackName}</div>
-                                  {s.isMine ? <Badge variant="secondary">Your Submission</Badge> : null}
+                                  {s.isMine ? <Badge variant="secondary">Yours</Badge> : null}
                                 </div>
                                 <div className="truncate text-xs text-muted-foreground">{s.artistName}</div>
                                 {s.comment ? (
                                   <div className="mt-2 line-clamp-2 text-sm text-foreground/90">“{s.comment}”</div>
                                 ) : null}
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <Badge variant="secondary">{s.voteCount} votes</Badge>
+                                  {s.submitterUsername ? (
+                                    <Link href={`/u/${s.submitterUsername}`} className="text-xs text-primary hover:underline">
+                                      {s.submitterNickname || `@${s.submitterUsername}`}
+                                    </Link>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">{s.submitterNickname || "Unknown"}</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
 
                             <div className="flex flex-col items-end gap-2">
-                              <Badge variant="secondary">{s.voteCount} votes</Badge>
                               <motion.div
                                 whileTap={{ scale: 0.98 }}
                                 animate={s.viewerVoted ? { scale: 1.02 } : { scale: 1 }}
@@ -638,15 +764,47 @@ export default function ChallengePage() {
                                   disabled={s.isMine || votingOnId === s.id}
                                 >
                                   <ThumbsUp className="h-4 w-4" />
-                                  {s.isMine ? "Mine" : votingOnId === s.id ? "..." : s.viewerVoted ? "Voted" : "Vote"}
+                                  {s.isMine ? "Mine" : votingOnId === s.id ? "…" : s.viewerVoted ? "Voted" : "Vote"}
                                 </Button>
                               </motion.div>
+                              {s.spotify_track_id ? (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setExpandedPlayId(expandedPlayId === s.id ? null : s.id)}
+                                >
+                                  <Play className="h-4 w-4" />
+                                  {expandedPlayId === s.id ? "Hide" : "Play"}
+                                </Button>
+                              ) : null}
                             </div>
-                          </CardContent>
+                              <AnimatePresence>
+                                {expandedPlayId === s.id && s.spotify_track_id ? (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="mt-3 overflow-hidden"
+                                  >
+                                    <iframe
+                                      className="w-full rounded-xl border border-border"
+                                      src={`https://open.spotify.com/embed/track/${s.spotify_track_id}`}
+                                      width="100%"
+                                      height="152"
+                                      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                                      loading="lazy"
+                                      title={`Play ${s.trackName}`}
+                                    />
+                                  </motion.div>
+                                ) : null}
+                              </AnimatePresence>
+                            </CardContent>
                         </Card>
                       </motion.div>
+                      </li>
                     ))}
-                  </motion.div>
+                  </ul>
                 )}
 
                 {status && mySubmission ? (
@@ -654,6 +812,98 @@ export default function ChallengePage() {
                     {status}
                   </div>
                 ) : null}
+              </CardContent>
+            </Card>
+
+            {/* Past Challenges */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-primary" />
+                  Past Challenges
+                </CardTitle>
+                <CardDescription>Click to expand and see top 3 submissions.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingPast ? (
+                  <div className="text-sm text-muted-foreground">Loading past challenges…</div>
+                ) : pastChallenges.length === 0 ? (
+                  <EmptyState
+                    icon={Trophy}
+                    title="No past challenges"
+                    description="Previous weeks will appear here."
+                  />
+                ) : (
+                  <ul className="space-y-2">
+                    {pastChallenges.map((past) => {
+                      const isExpanded = expandedPastId === past.id;
+                      const top = past.topSubmissions[0];
+                      return (
+                        <li key={past.id}>
+                          <Card>
+                            <button
+                              type="button"
+                              className="w-full text-left"
+                              onClick={() => setExpandedPastId(isExpanded ? null : past.id)}
+                            >
+                              <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-medium">{past.prompt}</p>
+                                  {top ? (
+                                    <p className="mt-1 text-sm text-muted-foreground">
+                                      #1: {top.trackName} — {top.artistName}
+                                    </p>
+                                  ) : (
+                                    <p className="mt-1 text-sm text-muted-foreground">No submissions</p>
+                                  )}
+                                </div>
+                                {isExpanded ? (
+                                  <ChevronUp className="h-5 w-5 shrink-0 text-muted-foreground" />
+                                ) : (
+                                  <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground" />
+                                )}
+                              </CardContent>
+                            </button>
+                            <AnimatePresence>
+                              {isExpanded && past.topSubmissions.length > 0 ? (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: "auto", opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  className="overflow-hidden border-t border-border"
+                                >
+                                  <ul className="divide-y divide-border px-4 py-3">
+                                    {past.topSubmissions.map((sub, idx) => (
+                                      <li key={idx} className="flex items-center gap-3 py-3 first:pt-0">
+                                        <span className="font-medium text-muted-foreground">#{idx + 1}</span>
+                                        {sub.albumImage ? (
+                                          // eslint-disable-next-line @next/next/no-img-element
+                                          <img
+                                            src={sub.albumImage}
+                                            alt=""
+                                            className="h-10 w-10 rounded-lg object-cover"
+                                          />
+                                        ) : null}
+                                        <div className="min-w-0 flex-1">
+                                          <p className="text-sm font-medium">{sub.trackName}</p>
+                                          <p className="text-xs text-muted-foreground">{sub.artistName}</p>
+                                          {idx === 0 && sub.comment ? (
+                                            <p className="mt-1 text-sm text-foreground/90">&quot;{sub.comment}&quot;</p>
+                                          ) : null}
+                                        </div>
+                                        <Badge variant="secondary">{sub.voteCount} votes</Badge>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </motion.div>
+                              ) : null}
+                            </AnimatePresence>
+                          </Card>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </CardContent>
             </Card>
           </>

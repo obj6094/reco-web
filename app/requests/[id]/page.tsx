@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,81 +68,77 @@ export default function RequestDetailPage() {
   const [comment, setComment] = useState("");
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
 
-  useEffect(() => {
-    async function boot() {
-      // 인증 사용자 확인 (요청자/클레임/답변 권한 체크용)
-      const { data: userData } = await supabase.auth.getUser();
-      const uid = userData.user?.id ?? null;
-      setUserId(uid);
-      setAuthChecked(true);
-
-      // 보호된 페이지: 로그인 안 했으면 /login 으로 리다이렉트
-      if (!uid) {
-        router.replace("/login");
-        return;
-      }
-
-      if (!requestId) return;
-
-      await loadAll(uid);
-    }
-
-    async function loadAll(uid: string | null) {
+  const loadAll = useCallback(async () => {
+    if (!requestId) return;
       setLoading(true);
       setStatus("");
 
-      const { data, error } = await supabase
+      const { data: reqData, error: reqError } = await supabase
         .from("qna_requests")
-        .select(
-          "id, prompt, requester_id, created_at, best_answer_id, qna_claims(id, claimer_id), qna_answers(id, responder_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at)"
-        )
+        .select("id, prompt, requester_id, created_at, best_answer_id")
         .eq("id", requestId)
         .single();
 
-      if (error) {
-        setStatus("요청 정보를 불러오지 못했어: " + error.message);
+      if (reqError || !reqData) {
+        setStatus("Failed to load request: " + (reqError?.message ?? "Not found"));
+        setRequest(null);
+        setClaims([]);
+        setAnswers([]);
         setLoading(false);
         return;
       }
 
-      const claimsRows = (data.qna_claims ?? []) as any[];
-      const answersRows = (data.qna_answers ?? []) as any[];
-
       setRequest({
-        id: data.id,
-        prompt: data.prompt,
-        requester_id: data.requester_id,
-        created_at: data.created_at,
-        best_answer_id: data.best_answer_id,
+        id: reqData.id,
+        prompt: reqData.prompt,
+        requester_id: reqData.requester_id,
+        created_at: reqData.created_at,
+        best_answer_id: reqData.best_answer_id ?? null,
       });
+
+      const { data: claimsData } = await supabase
+        .from("qna_claims")
+        .select("id, claimer_id")
+        .eq("request_id", requestId);
       setClaims(
-        claimsRows.map((c) => ({
-          id: c.id,
-          claimer_id: c.claimer_id,
-        }))
+        (claimsData ?? []).map((c: any) => ({ id: c.id, claimer_id: c.claimer_id }))
       );
+
+      const { data: answersData } = await supabase
+        .from("qna_answers")
+        .select("id, responder_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at")
+        .eq("request_id", requestId)
+        .order("created_at", { ascending: false });
       setAnswers(
-        answersRows
-          .map((a) => ({
-            id: a.id,
-            responder_id: a.responder_id,
-            trackName: a.spotify_track_name,
-            artistName: a.spotify_artist_name,
-            albumImage: a.spotify_album_image_url,
-            comment: a.comment,
-            created_at: a.created_at,
-          }))
-          .sort(
-            (a, b) =>
-              new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          )
+        (answersData ?? []).map((a: any) => ({
+          id: a.id,
+          responder_id: a.responder_id,
+          trackName: a.spotify_track_name,
+          artistName: a.spotify_artist_name,
+          albumImage: a.spotify_album_image_url,
+          comment: a.comment,
+          created_at: a.created_at,
+        }))
       );
 
       setLoading(false);
-    }
+  }, [requestId]);
 
+  useEffect(() => {
+    async function boot() {
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id ?? null;
+      setUserId(uid);
+      setAuthChecked(true);
+      if (!uid) {
+        router.replace("/login");
+        return;
+      }
+      if (!requestId) return;
+      await loadAll();
+    }
     boot();
-  }, [requestId, router]);
+  }, [requestId, router, loadAll]);
 
   const claimsCount = claims.length;
   const alreadyClaimed = useMemo(
@@ -159,11 +155,11 @@ export default function RequestDetailPage() {
   async function handleClaim() {
     setStatus("");
     if (!userId || !request) {
-      setStatus("클레임하려면 로그인해야 해.");
+      setStatus("You must be logged in to claim.");
       return;
     }
     if (!canClaim) {
-      setStatus("지금은 이 요청을 더 이상 클레임할 수 없어.");
+      setStatus("You can no longer claim this request.");
       return;
     }
 
@@ -174,55 +170,13 @@ export default function RequestDetailPage() {
     });
 
     if (error) {
-      setStatus("클레임에 실패했어: " + error.message);
+      setStatus("Failed to claim: " + error.message);
       setClaiming(false);
       return;
     }
 
     setClaiming(false);
-    // 최신 상태 다시 불러오기
-    const { data, error: reloadError } = await supabase
-      .from("qna_requests")
-      .select(
-        "id, prompt, requester_id, created_at, best_answer_id, qna_claims(id, claimer_id), qna_answers(id, responder_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at)"
-      )
-      .eq("id", request.id)
-      .single();
-
-    if (!reloadError && data) {
-      const claimsRows = (data.qna_claims ?? []) as any[];
-      const answersRows = (data.qna_answers ?? []) as any[];
-
-      setRequest({
-        id: data.id,
-        prompt: data.prompt,
-        requester_id: data.requester_id,
-        created_at: data.created_at,
-        best_answer_id: data.best_answer_id,
-      });
-      setClaims(
-        claimsRows.map((c) => ({
-          id: c.id,
-          claimer_id: c.claimer_id,
-        }))
-      );
-      setAnswers(
-        answersRows
-          .map((a) => ({
-            id: a.id,
-            responder_id: a.responder_id,
-            trackName: a.spotify_track_name,
-            artistName: a.spotify_artist_name,
-            albumImage: a.spotify_album_image_url,
-            comment: a.comment,
-            created_at: a.created_at,
-          }))
-          .sort(
-            (a, b) =>
-              new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          )
-      );
-    }
+    await loadAll();
   }
 
   async function searchTracks() {
@@ -237,9 +191,9 @@ export default function RequestDetailPage() {
       const res = await fetch(`/api/spotify/search?q=${encodeURIComponent(query)}`);
       const data = await res.json();
       setTracks(data.tracks ?? []);
-      if (!data.tracks?.length) setStatus("검색 결과가 없어.");
+      if (!data.tracks?.length) setStatus("No results found.");
     } catch (e: any) {
-      setStatus("검색 중 오류가 있었어: " + e.message);
+      setStatus("Search error: " + e.message);
     } finally {
       setSearching(false);
     }
@@ -250,16 +204,16 @@ export default function RequestDetailPage() {
     setStatus("");
 
     if (!userId || !request) {
-      setStatus("답변하려면 로그인해야 해.");
+      setStatus("You must be logged in to answer.");
       return;
     }
     if (!alreadyClaimed) {
       // 서버 RLS 로도 제한되겠지만, 클라이언트에서 한 번 더 막아준다
-      setStatus("먼저 이 요청을 클레임해야 답변을 남길 수 있어.");
+      setStatus("You must claim this request before answering.");
       return;
     }
     if (!selected) {
-      setStatus("먼저 곡을 선택해줘.");
+      setStatus("Please select a track first.");
       return;
     }
 
@@ -276,7 +230,7 @@ export default function RequestDetailPage() {
     });
 
     if (error) {
-      setStatus("답변 저장에 실패했어: " + error.message);
+      setStatus("Failed to save answer: " + error.message);
       setSubmittingAnswer(false);
       return;
     }
@@ -287,51 +241,7 @@ export default function RequestDetailPage() {
     setQuery("");
     setTracks([]);
 
-    // 다시 전체 상태 불러오기 (새 답변 포함)
-    if (request.id) {
-      const { data, error: reloadError } = await supabase
-        .from("qna_requests")
-        .select(
-          "id, prompt, requester_id, created_at, best_answer_id, qna_claims(id, claimer_id), qna_answers(id, responder_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at)"
-        )
-        .eq("id", request.id)
-        .single();
-
-      if (!reloadError && data) {
-        const claimsRows = (data.qna_claims ?? []) as any[];
-        const answersRows = (data.qna_answers ?? []) as any[];
-
-        setRequest({
-          id: data.id,
-          prompt: data.prompt,
-          requester_id: data.requester_id,
-          created_at: data.created_at,
-          best_answer_id: data.best_answer_id,
-        });
-        setClaims(
-          claimsRows.map((c) => ({
-            id: c.id,
-            claimer_id: c.claimer_id,
-          }))
-        );
-        setAnswers(
-          answersRows
-            .map((a) => ({
-              id: a.id,
-              responder_id: a.responder_id,
-              trackName: a.spotify_track_name,
-              artistName: a.spotify_artist_name,
-              albumImage: a.spotify_album_image_url,
-              comment: a.comment,
-              created_at: a.created_at,
-            }))
-            .sort(
-              (a, b) =>
-                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-            )
-        );
-      }
-    }
+    await loadAll();
   }
 
   async function markBest(answerId: string) {
@@ -340,7 +250,7 @@ export default function RequestDetailPage() {
     if (!userId || !request) return;
     if (userId !== request.requester_id) {
       // 요청자만 베스트 Reco 를 지정할 수 있다
-      setStatus("이 요청의 작성자만 Best Reco 를 선택할 수 있어.");
+      setStatus("Only the requester can choose Best Reco.");
       return;
     }
 
@@ -350,53 +260,11 @@ export default function RequestDetailPage() {
       .eq("id", request.id);
 
     if (error) {
-      setStatus("Best Reco 선택에 실패했어: " + error.message);
+      setStatus("Failed to set Best Reco: " + error.message);
       return;
     }
 
-    // 요청/답변 상태 다시 불러오기
-    const { data, error: reloadError } = await supabase
-      .from("qna_requests")
-      .select(
-        "id, prompt, requester_id, created_at, best_answer_id, qna_claims(id, claimer_id), qna_answers(id, responder_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at)"
-      )
-      .eq("id", request.id)
-      .single();
-
-    if (!reloadError && data) {
-      const claimsRows = (data.qna_claims ?? []) as any[];
-      const answersRows = (data.qna_answers ?? []) as any[];
-
-      setRequest({
-        id: data.id,
-        prompt: data.prompt,
-        requester_id: data.requester_id,
-        created_at: data.created_at,
-        best_answer_id: data.best_answer_id,
-      });
-      setClaims(
-        claimsRows.map((c) => ({
-          id: c.id,
-          claimer_id: c.claimer_id,
-        }))
-      );
-      setAnswers(
-        answersRows
-          .map((a) => ({
-            id: a.id,
-            responder_id: a.responder_id,
-            trackName: a.spotify_track_name,
-            artistName: a.spotify_artist_name,
-            albumImage: a.spotify_album_image_url,
-            comment: a.comment,
-            created_at: a.created_at,
-          }))
-          .sort(
-            (a, b) =>
-              new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          )
-      );
-    }
+    await loadAll();
   }
 
   if (!authChecked) {
@@ -406,7 +274,7 @@ export default function RequestDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle>Loading</CardTitle>
-              <CardDescription>세션을 확인하는 중이야...</CardDescription>
+              <CardDescription>Checking your session…</CardDescription>
             </CardHeader>
           </Card>
         </div>
@@ -421,7 +289,7 @@ export default function RequestDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle>Redirecting</CardTitle>
-              <CardDescription>로그인 페이지로 이동하는 중이야...</CardDescription>
+              <CardDescription>Sending you to the login page…</CardDescription>
             </CardHeader>
           </Card>
         </div>
@@ -444,12 +312,12 @@ export default function RequestDetailPage() {
             {loading && !request ? (
               <>
                 <CardTitle>Loading</CardTitle>
-                <CardDescription>요청을 불러오는 중이야...</CardDescription>
+                <CardDescription>Loading request…</CardDescription>
               </>
             ) : !request ? (
               <>
                 <CardTitle>Not found</CardTitle>
-                <CardDescription>이 요청을 찾을 수 없어.</CardDescription>
+                <CardDescription>Request not found.</CardDescription>
               </>
             ) : (
               <>
@@ -487,7 +355,7 @@ export default function RequestDetailPage() {
               ) : (
                 <div className="flex items-start gap-2 text-sm text-muted-foreground">
                   <Lock className="mt-0.5 h-4 w-4" />
-                  이 요청은 더 이상 클레임할 수 없어.
+                  This request can no longer be claimed.
                 </div>
               )}
             </CardContent>
@@ -501,7 +369,7 @@ export default function RequestDetailPage() {
               <CardHeader>
                 <CardTitle>Leave your Reco</CardTitle>
                 <CardDescription>
-                  이 요청에 어울리는 곡을 골라서 한 줄 코멘트와 함께 남겨줘.
+                  Pick a track that fits this request and add a short comment.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -580,7 +448,7 @@ export default function RequestDetailPage() {
                 <Badge variant="secondary">{answers.length}</Badge>
               </div>
               <CardDescription>
-                요청자는 하나를 Best Reco로 선택할 수 있어.
+                The requester can choose one answer as Best Reco.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -588,7 +456,7 @@ export default function RequestDetailPage() {
                 <EmptyState
                   icon={Search}
                   title="No answers yet"
-                  description="아직 이 요청에 대한 답변이 없어."
+                  description="No answers yet for this request."
                 />
               ) : (
                 <motion.div
