@@ -261,15 +261,15 @@ export default function ProfilePage() {
                   <User className="h-4 w-4 text-primary" />
                   Account
                 </CardTitle>
-                <CardDescription>Your profile. Nickname is editable.</CardDescription>
+                <CardDescription>Your profile. Nickname is your display name.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Username</label>
-                  <p className="text-sm font-medium">{username ? `@${username}` : "—"}</p>
+                  <label className="text-xs font-medium text-muted-foreground">Nickname (display name)</label>
+                  <p className="text-lg font-semibold">{nickname?.trim() || "Anonymous"}</p>
                 </div>
                 <form onSubmit={handleNicknameSave} className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">Nickname</label>
+                  <label className="text-xs font-medium text-muted-foreground">Edit nickname</label>
                   <Input
                     value={nickname}
                     onChange={(e) => setNickname(e.target.value)}
@@ -279,6 +279,10 @@ export default function ProfilePage() {
                     {nicknameSaving ? "Saving…" : "Save"}
                   </Button>
                 </form>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Username (handle)</label>
+                  <p className="text-sm text-muted-foreground">{username ? `@${username}` : "—"}</p>
+                </div>
                 <Button
                   type="button"
                   variant="outline"

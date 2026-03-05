@@ -56,9 +56,9 @@ export default function RequestsPage() {
       .select("request_id")
       .eq("responder_id", uid);
     const answeredIds = new Set((answeredRows ?? []).map((r: any) => r.request_id));
-    const { data, error } = await supabase
+    const { data: reqData, error } = await supabase
       .from("qna_requests")
-      .select("id, prompt, created_at, qna_answers(id)")
+      .select("id, prompt, created_at")
       .is("best_answer_id", null)
       .neq("requester_id", uid)
       .order("created_at", { ascending: true })
@@ -68,33 +68,57 @@ export default function RequestsPage() {
       setLoadingQueue(false);
       return;
     }
-    const withCount = (data ?? []).map((row: any) => ({
-      id: row.id,
-      prompt: row.prompt,
-      created_at: row.created_at,
-      answersCount: (row.qna_answers ?? []).length,
+    const reqs = reqData ?? [];
+    const unanswered = reqs.filter((r: any) => !answeredIds.has(r.id));
+    const ids = unanswered.slice(0, 3).map((r: any) => r.id);
+    let countByRequest: Record<string, number> = {};
+    if (ids.length > 0) {
+      const { data: ansData } = await supabase
+        .from("qna_answers")
+        .select("request_id")
+        .in("request_id", ids);
+      (ansData ?? []).forEach((r: any) => {
+        countByRequest[r.request_id] = (countByRequest[r.request_id] ?? 0) + 1;
+      });
+    }
+    const filtered = unanswered.slice(0, 3).map((r: any) => ({
+      id: r.id,
+      prompt: r.prompt,
+      created_at: r.created_at,
+      answersCount: countByRequest[r.id] ?? 0,
     }));
-    const filtered = withCount.filter((r) => !answeredIds.has(r.id)).slice(0, 3);
     setQueueForYou(filtered);
     setLoadingQueue(false);
   }, []);
 
   const loadMyRequests = useCallback(async (uid: string) => {
-    const { data, error } = await supabase
+    const { data: reqData, error } = await supabase
       .from("qna_requests")
-      .select("id, prompt, created_at, best_answer_id, qna_answers(id)")
+      .select("id, prompt, created_at, best_answer_id")
       .eq("requester_id", uid)
       .order("created_at", { ascending: false });
     if (error) {
       setStatus("Failed to load my requests: " + error.message);
       return;
     }
+    const reqs = reqData ?? [];
+    const ids = reqs.map((r: any) => r.id);
+    let countByRequest: Record<string, number> = {};
+    if (ids.length > 0) {
+      const { data: ansData } = await supabase
+        .from("qna_answers")
+        .select("request_id")
+        .in("request_id", ids);
+      (ansData ?? []).forEach((r: any) => {
+        countByRequest[r.request_id] = (countByRequest[r.request_id] ?? 0) + 1;
+      });
+    }
     setMyRequests(
-      (data ?? []).map((row: any) => ({
+      reqs.map((row: any) => ({
         id: row.id,
         prompt: row.prompt,
         created_at: row.created_at,
-        answersCount: (row.qna_answers ?? []).length,
+        answersCount: countByRequest[row.id] ?? 0,
         best_answer_id: row.best_answer_id ?? null,
       }))
     );

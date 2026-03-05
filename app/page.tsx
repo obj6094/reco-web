@@ -309,7 +309,7 @@ export default function HomePage() {
         return {
           userId: uid,
           username: p.username ?? null,
-          nickname: p.nickname ?? p.username ?? "Unknown",
+          nickname: p.nickname ?? p.username ?? "Anonymous",
           score,
         };
       });

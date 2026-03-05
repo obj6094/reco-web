@@ -742,10 +742,13 @@ export default function ChallengePage() {
                                   <Badge variant="secondary">{s.voteCount} votes</Badge>
                                   {s.submitterUsername ? (
                                     <Link href={`/u/${s.submitterUsername}`} className="text-xs text-primary hover:underline">
-                                      {s.submitterNickname || `@${s.submitterUsername}`}
+                                      <span className="font-medium">{s.submitterNickname || "Anonymous"}</span>
+                                      <span className="ml-1 text-muted-foreground">@{s.submitterUsername}</span>
                                     </Link>
                                   ) : (
-                                    <span className="text-xs text-muted-foreground">{s.submitterNickname || "Unknown"}</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {s.submitterNickname || "Anonymous"}
+                                    </span>
                                   )}
                                 </div>
                               </div>

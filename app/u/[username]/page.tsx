@@ -220,7 +220,7 @@ export default function PublicProfilePage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5 text-primary" />
-              <span>{nickname ?? usernameParam}</span>
+              <span>{nickname || "Anonymous"}</span>
             </CardTitle>
             <CardDescription>@{usernameParam}</CardDescription>
           </CardHeader>
