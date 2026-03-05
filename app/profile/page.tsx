@@ -1,15 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
-import { ArrowRight, MessageCircle, Star, Trophy, User } from "lucide-react";
+import { ArrowRight, LogOut, MessageCircle, Star, Trophy, User } from "lucide-react";
 
 type MySubmission = {
   id: string;
@@ -36,6 +43,9 @@ export default function ProfilePage() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
+  const [nickname, setNickname] = useState<string>("");
+  const [nicknameSaving, setNicknameSaving] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
   const [recoScore, setRecoScore] = useState<number | null>(null);
@@ -47,7 +57,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     async function boot() {
-      // 프로필은 로그인 유저 정보가 중요하므로 세션을 먼저 확인
+      // Profile is only for the logged-in user, check session first
       const { data: userData } = await supabase.auth.getUser();
       const user = userData.user;
       setUserId(user?.id ?? null);
@@ -55,7 +65,7 @@ export default function ProfilePage() {
       setAuthChecked(true);
 
       if (!user?.id) {
-        // 보호된 페이지: 로그인 안 했으면 /login 으로 리다이렉트
+        // Protected page: redirect to /login if not signed in
         router.replace("/login");
         setLoading(false);
         return;
@@ -68,7 +78,7 @@ export default function ProfilePage() {
       setLoading(true);
       setStatus("");
 
-      // 내가 제출한 챌린지 목록 + 투표 수
+      // My challenge submissions + votes
       const { data: subRows, error: subError } = await supabase
         .from("challenge_submissions")
         .select(
@@ -95,7 +105,7 @@ export default function ProfilePage() {
 
       setSubmissions(mappedSubs);
 
-      // 내가 작성한 QnA 답변
+      // My QnA answers
       const { data: ansRows, error: ansError } = await supabase
         .from("qna_answers")
         .select("id, request_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at")
@@ -119,7 +129,7 @@ export default function ProfilePage() {
 
       setAnswers(mappedAns);
 
-      // Reco Score 계산
+      // Calculate Reco Score
       let bestRecoCount = 0;
       let voteCountTotal = 0;
 
@@ -157,11 +167,51 @@ export default function ProfilePage() {
       }
 
       setRecoScore(bestRecoCount + voteCountTotal);
+
+      // Load basic profile info (username, nickname) for settings
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("username, nickname")
+        .eq("id", uid)
+        .maybeSingle();
+
+      if (!profileError && profile) {
+        setUsername(profile.username ?? null);
+        setNickname(profile.nickname ?? "");
+      }
       setLoading(false);
     }
 
     boot();
   }, [router]);
+
+  async function handleNicknameSave(e: FormEvent) {
+    e.preventDefault();
+    if (!userId) return;
+    if (!nickname.trim()) return;
+
+    setNicknameSaving(true);
+    setStatus("");
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ nickname: nickname.trim() })
+        .eq("id", userId);
+
+      if (error) {
+        setStatus("Failed to update nickname: " + error.message);
+      } else {
+        setStatus("Nickname updated.");
+      }
+    } finally {
+      setNicknameSaving(false);
+    }
+  }
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.replace("/login");
+  }
 
   if (!authChecked) {
     return (
@@ -170,7 +220,7 @@ export default function ProfilePage() {
           <Card>
             <CardHeader>
               <CardTitle>Loading</CardTitle>
-              <CardDescription>세션을 확인하는 중이야...</CardDescription>
+              <CardDescription>Checking your session…</CardDescription>
             </CardHeader>
           </Card>
         </div>
@@ -185,7 +235,7 @@ export default function ProfilePage() {
           <Card>
             <CardHeader>
               <CardTitle>Redirecting</CardTitle>
-              <CardDescription>로그인 페이지로 이동하는 중이야...</CardDescription>
+              <CardDescription>Sending you to the login page…</CardDescription>
             </CardHeader>
           </Card>
         </div>
@@ -199,7 +249,7 @@ export default function ProfilePage() {
         <div className="space-y-2">
           <h1 className="text-2xl font-extrabold tracking-tight">Profile</h1>
           <p className="text-sm text-muted-foreground">
-            Reco Score와 내 활동 기록을 한눈에 확인해.
+            Manage your profile and see your Reco Score.
           </p>
         </div>
 
@@ -211,8 +261,38 @@ export default function ProfilePage() {
                   <User className="h-4 w-4 text-primary" />
                   Account
                 </CardTitle>
-                <CardDescription>{email ?? "이메일 정보를 불러오지 못했어."}</CardDescription>
+                <CardDescription>
+                  {username ? `@${username}` : "Username not set yet."}
+                </CardDescription>
               </CardHeader>
+              <CardContent className="space-y-3">
+                <form onSubmit={handleNicknameSave} className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Nickname
+                  </label>
+                  <Input
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    placeholder="Your display name"
+                  />
+                  <Button type="submit" size="sm" disabled={nicknameSaving}>
+                    {nicknameSaving ? "Saving…" : "Save"}
+                  </Button>
+                </form>
+                <div className="pt-2 text-xs text-muted-foreground">
+                  Email (not public): {email ?? "Unknown"}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={handleLogout}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </Button>
+              </CardContent>
             </Card>
           </motion.div>
 
@@ -229,7 +309,7 @@ export default function ProfilePage() {
                   Reco Score
                 </CardTitle>
                 <CardDescription>
-                  Reco Score = (Best Reco 로 선택된 횟수) + (챌린지 제출이 받은 총 투표 수)
+                    Reco Score = (# times your answers were chosen as best) + (total votes on your challenge submissions)
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex items-end justify-between gap-4">
@@ -255,16 +335,16 @@ export default function ProfilePage() {
               </CardTitle>
               <Badge variant="secondary">{submissions.length}</Badge>
             </div>
-            <CardDescription>내가 제출한 곡들과 받은 투표 수</CardDescription>
+            <CardDescription>Your challenge entries and votes received.</CardDescription>
           </CardHeader>
           <CardContent>
             {loading && !submissions.length ? (
-              <div className="text-sm text-muted-foreground">불러오는 중이야...</div>
+              <div className="text-sm text-muted-foreground">Loading…</div>
             ) : submissions.length === 0 ? (
               <EmptyState
                 icon={Trophy}
                 title="No submissions yet"
-                description="이번 주 챌린지에 첫 곡을 제출해볼래?"
+                description="Join this week's challenge and submit your first Reco."
               />
             ) : (
               <motion.div
@@ -321,12 +401,12 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent>
             {loading && !answers.length ? (
-              <div className="text-sm text-muted-foreground">불러오는 중이야...</div>
+              <div className="text-sm text-muted-foreground">Loading…</div>
             ) : answers.length === 0 ? (
               <EmptyState
                 icon={MessageCircle}
                 title="No answers yet"
-                description="요청을 클레임하고 답변을 남기면 여기에 기록돼."
+                description="Answer a request and your Recos will appear here."
               />
             ) : (
               <motion.div
