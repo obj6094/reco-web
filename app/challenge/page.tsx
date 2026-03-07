@@ -42,7 +42,14 @@ type PastChallengeItem = {
   id: string;
   prompt: string;
   starts_at: string | null;
-  topSubmissions: { trackName: string; artistName: string; albumImage: string | null; comment: string | null; voteCount: number }[];
+  topSubmissions: {
+    trackName: string;
+    artistName: string;
+    albumImage: string | null;
+    comment: string | null;
+    voteCount: number;
+    created_at: string;
+  }[];
 };
 
 export default function ChallengePage() {
@@ -224,11 +231,15 @@ export default function ChallengePage() {
     if (!challenge?.id) return;
     async function loadPast() {
       setLoadingPast(true);
-      const { data: allChallenges } = await supabase
+      const { data: allChallenges, error: challengeError } = await supabase
         .from("weekly_challenges")
         .select("id, prompt, starts_at")
         .order("starts_at", { ascending: false })
         .limit(11);
+      if (challengeError) {
+        setLoadingPast(false);
+        return;
+      }
       const past = (allChallenges ?? []).filter((c: any) => c.id !== challenge.id).slice(0, 10);
       if (past.length === 0) {
         setPastChallenges([]);
@@ -236,19 +247,60 @@ export default function ChallengePage() {
         return;
       }
       const pastIds = past.map((c: any) => c.id);
-      const { data: subRows } = await supabase
+      const { data: subRows, error: subError } = await supabase
         .from("challenge_submissions")
-        .select("id, challenge_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at, challenge_votes(id)")
+        .select("id, challenge_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at")
         .in("challenge_id", pastIds);
-      const byChallenge: Record<string, { trackName: string; artistName: string; albumImage: string | null; comment: string | null; voteCount: number }[]> = {};
+      if (subError) {
+        setLoadingPast(false);
+        return;
+      }
+
+      const submissionIds = (subRows ?? []).map((row: any) => row.id);
+      let voteCountBySubmission: Record<string, number> = {};
+      if (submissionIds.length) {
+        const { data: voteRows } = await supabase
+          .from("challenge_votes")
+          .select("submission_id")
+          .in("submission_id", submissionIds);
+        (voteRows ?? []).forEach((row: any) => {
+          voteCountBySubmission[row.submission_id] = (voteCountBySubmission[row.submission_id] ?? 0) + 1;
+        });
+      }
+
+      const byChallenge: Record<
+        string,
+        {
+          trackName: string;
+          artistName: string;
+          albumImage: string | null;
+          comment: string | null;
+          voteCount: number;
+          created_at: string;
+        }[]
+      > = {};
       past.forEach((c: any) => { byChallenge[c.id] = []; });
       (subRows ?? []).forEach((row: any) => {
-        const voteCount = (row.challenge_votes ?? []).length;
+        const voteCount = voteCountBySubmission[row.id] ?? 0;
         const arr = byChallenge[row.challenge_id];
-        if (arr) arr.push({ trackName: row.spotify_track_name, artistName: row.spotify_artist_name, albumImage: row.spotify_album_image_url, comment: row.comment, voteCount });
+        if (arr) {
+          arr.push({
+            trackName: row.spotify_track_name,
+            artistName: row.spotify_artist_name,
+            albumImage: row.spotify_album_image_url,
+            comment: row.comment,
+            voteCount,
+            created_at: row.created_at,
+          });
+        }
       });
       const items: PastChallengeItem[] = past.map((c: any) => {
-        const list = (byChallenge[c.id] ?? []).sort((a, b) => b.voteCount - a.voteCount).slice(0, 3);
+        const list = (byChallenge[c.id] ?? [])
+          .sort((a, b) => {
+            if (b.voteCount !== a.voteCount) return b.voteCount - a.voteCount;
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          })
+          .slice(0, 3);
         return { id: c.id, prompt: c.prompt, starts_at: c.starts_at, topSubmissions: list };
       });
       setPastChallenges(items);
@@ -516,25 +568,35 @@ export default function ChallengePage() {
           <h1 className="mt-2 text-3xl font-extrabold tracking-tight md:text-4xl lg:text-5xl">
             {challenge.prompt}
           </h1>
-          <div className="mt-4 flex flex-wrap items-center gap-4">
-            <span className="text-sm text-muted-foreground">
-              {challengeDuration(challenge.starts_at)}
-            </span>
-            {userId ? (
+          {userId ? (
+            <div className="mt-4 flex flex-wrap items-center gap-4">
+              <span className="text-sm text-muted-foreground">
+                {challengeDuration(challenge.starts_at)}
+              </span>
               <p className="text-sm text-muted-foreground">
                 Submit your track here. Voting is available in the submissions list below.
               </p>
-            ) : (
-              <div className="flex gap-2">
-                <Button asChild>
-                  <Link href="/login?mode=login">Log in</Link>
-                </Button>
-                <Button variant="outline" asChild>
-                  <Link href="/login?mode=signup">Sign up</Link>
-                </Button>
+            </div>
+          ) : (
+            <div className="mt-5 space-y-3">
+              <span className="block text-sm text-muted-foreground">
+                {challengeDuration(challenge.starts_at)}
+              </span>
+              <div className="rounded-2xl border border-border bg-accent/30 p-4">
+                <p className="text-sm text-foreground/90">
+                  Log in or sign up to submit your track and vote on submissions.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button asChild className="min-w-24">
+                    <Link href="/login?mode=login">Log in</Link>
+                  </Button>
+                  <Button variant="outline" asChild className="min-w-24">
+                    <Link href="/login?mode=signup">Sign up</Link>
+                  </Button>
+                </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {userId && !mySubmission ? (
             <div className="mt-6 space-y-4 rounded-2xl border border-border bg-accent/30 p-4">
@@ -632,16 +694,16 @@ export default function ChallengePage() {
               <CardContent>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">Sort:</span>
-                  <div className="flex rounded-lg border border-border bg-muted/30 p-0.5">
+                  <div className="flex h-9 items-center rounded-xl border border-border bg-muted/40 p-1">
                     <button
                       type="button"
                       onClick={() => setSortBy("votes")}
-                      className="relative rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                      className="relative h-7 rounded-lg px-3 text-sm font-medium transition-colors"
                     >
                       {sortBy === "votes" ? (
                         <motion.span
                           layoutId="submission-sort-pill"
-                          className="absolute inset-0 rounded-md bg-primary"
+                          className="absolute inset-0 rounded-lg bg-primary"
                           transition={{ type: "spring", stiffness: 420, damping: 32 }}
                         />
                       ) : null}
@@ -656,12 +718,12 @@ export default function ChallengePage() {
                     <button
                       type="button"
                       onClick={() => setSortBy("recent")}
-                      className="relative rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                      className="relative h-7 rounded-lg px-3 text-sm font-medium transition-colors"
                     >
                       {sortBy === "recent" ? (
                         <motion.span
                           layoutId="submission-sort-pill"
-                          className="absolute inset-0 rounded-md bg-primary"
+                          className="absolute inset-0 rounded-lg bg-primary"
                           transition={{ type: "spring", stiffness: 420, damping: 32 }}
                         />
                       ) : null}
@@ -757,16 +819,16 @@ export default function ChallengePage() {
                   <CardTitle>Submissions</CardTitle>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Sort:</span>
-                    <div className="flex rounded-lg border border-border bg-muted/30 p-0.5">
+                    <div className="flex h-9 items-center rounded-xl border border-border bg-muted/40 p-1">
                       <button
                         type="button"
                         onClick={() => setSortBy("votes")}
-                        className="relative rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                        className="relative h-7 rounded-lg px-3 text-sm font-medium transition-colors"
                       >
                         {sortBy === "votes" ? (
                           <motion.span
                             layoutId="submission-sort-pill"
-                            className="absolute inset-0 rounded-md bg-primary"
+                            className="absolute inset-0 rounded-lg bg-primary"
                             transition={{ type: "spring", stiffness: 420, damping: 32 }}
                           />
                         ) : null}
@@ -781,12 +843,12 @@ export default function ChallengePage() {
                       <button
                         type="button"
                         onClick={() => setSortBy("recent")}
-                        className="relative rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                        className="relative h-7 rounded-lg px-3 text-sm font-medium transition-colors"
                       >
                         {sortBy === "recent" ? (
                           <motion.span
                             layoutId="submission-sort-pill"
-                            className="absolute inset-0 rounded-md bg-primary"
+                            className="absolute inset-0 rounded-lg bg-primary"
                             transition={{ type: "spring", stiffness: 420, damping: 32 }}
                           />
                         ) : null}
@@ -939,107 +1001,113 @@ export default function ChallengePage() {
                 ) : null}
               </CardContent>
             </Card>
-
-            {/* Past Challenges */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-4 w-4 text-primary" />
-                  Past Challenges
-                </CardTitle>
-                <CardDescription>Click to expand and see top 3 submissions.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingPast ? (
-                  <div className="text-sm text-muted-foreground">Loading past challenges…</div>
-                ) : pastChallenges.length === 0 ? (
-                  <EmptyState
-                    icon={Trophy}
-                    title="No past challenges"
-                    description="Previous weeks will appear here."
-                  />
-                ) : (
-                  <ul className="space-y-2">
-                    {previewPastChallenges.map((past) => {
-                      const isExpanded = expandedPastId === past.id;
-                      const top = past.topSubmissions[0];
-                      return (
-                        <li key={past.id}>
-                          <Card>
-                            <button
-                              type="button"
-                              className="w-full text-left"
-                              onClick={() => setExpandedPastId(isExpanded ? null : past.id)}
-                            >
-                              <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-                                <div className="min-w-0 flex-1">
-                                  <p className="font-medium">{past.prompt}</p>
-                                  {top ? (
-                                    <p className="mt-1 text-sm text-muted-foreground">
-                                      #1: {top.trackName} — {top.artistName}
-                                    </p>
-                                  ) : (
-                                    <p className="mt-1 text-sm text-muted-foreground">No submissions</p>
-                                  )}
-                                </div>
-                                {isExpanded ? (
-                                  <ChevronUp className="h-5 w-5 shrink-0 text-muted-foreground" />
-                                ) : (
-                                  <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground" />
-                                )}
-                              </CardContent>
-                            </button>
-                            <AnimatePresence>
-                              {isExpanded && past.topSubmissions.length > 0 ? (
-                                <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: "auto", opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  className="overflow-hidden border-t border-border"
-                                >
-                                  <ul className="divide-y divide-border px-4 py-3">
-                                    {past.topSubmissions.map((sub, idx) => (
-                                      <li key={idx} className="flex items-center gap-3 py-3 first:pt-0">
-                                        <span className="font-medium text-muted-foreground">#{idx + 1}</span>
-                                        {sub.albumImage ? (
-                                          // eslint-disable-next-line @next/next/no-img-element
-                                          <img
-                                            src={sub.albumImage}
-                                            alt=""
-                                            className="h-10 w-10 rounded-lg object-cover"
-                                          />
-                                        ) : null}
-                                        <div className="min-w-0 flex-1">
-                                          <p className="text-sm font-medium">{sub.trackName}</p>
-                                          <p className="text-xs text-muted-foreground">{sub.artistName}</p>
-                                          {idx === 0 && sub.comment ? (
-                                            <p className="mt-1 text-sm text-foreground/90">&quot;{sub.comment}&quot;</p>
-                                          ) : null}
-                                        </div>
-                                        <Badge variant="secondary">{sub.voteCount} votes</Badge>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </motion.div>
-                              ) : null}
-                            </AnimatePresence>
-                          </Card>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-                {pastChallenges.length > previewPastChallenges.length ? (
-                  <div className="mt-4">
-                    <Button variant="outline" asChild>
-                      <Link href="/challenge/past">View more</Link>
-                    </Button>
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
           </>
         )}
+
+        {/* Past Challenges */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-primary" />
+              Past Challenges
+            </CardTitle>
+            <CardDescription>Click to expand and see top 3 submissions.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingPast ? (
+              <div className="text-sm text-muted-foreground">Loading past challenges…</div>
+            ) : pastChallenges.length === 0 ? (
+              <EmptyState
+                icon={Trophy}
+                title="No past challenges"
+                description="Previous weeks will appear here."
+              />
+            ) : (
+              <ul className="space-y-2">
+                {previewPastChallenges.map((past) => {
+                  const isExpanded = expandedPastId === past.id;
+                  const top = past.topSubmissions[0];
+                  return (
+                    <li key={past.id}>
+                      <Card>
+                        <button
+                          type="button"
+                          className="w-full text-left"
+                          onClick={() => setExpandedPastId(isExpanded ? null : past.id)}
+                        >
+                          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium">{past.prompt}</p>
+                              {top ? (
+                                <div className="mt-2 flex items-center gap-2">
+                                  {top.albumImage ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={top.albumImage} alt="" className="h-8 w-8 rounded-md object-cover" />
+                                  ) : null}
+                                  <p className="min-w-0 truncate text-sm text-muted-foreground">
+                                    #1: {top.trackName} — {top.artistName}
+                                  </p>
+                                </div>
+                              ) : (
+                                <p className="mt-1 text-sm text-muted-foreground">No submissions</p>
+                              )}
+                            </div>
+                            {isExpanded ? (
+                              <ChevronUp className="h-5 w-5 shrink-0 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground" />
+                            )}
+                          </CardContent>
+                        </button>
+                        <AnimatePresence>
+                          {isExpanded && past.topSubmissions.length > 0 ? (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden border-t border-border"
+                            >
+                              <ul className="divide-y divide-border px-4 py-3">
+                                {past.topSubmissions.map((sub, idx) => (
+                                  <li key={idx} className="flex items-center gap-3 py-3 first:pt-0">
+                                    <span className="font-medium text-muted-foreground">#{idx + 1}</span>
+                                    {sub.albumImage ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img
+                                        src={sub.albumImage}
+                                        alt=""
+                                        className="h-10 w-10 rounded-lg object-cover"
+                                      />
+                                    ) : null}
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm font-medium">{sub.trackName}</p>
+                                      <p className="text-xs text-muted-foreground">{sub.artistName}</p>
+                                      {idx === 0 && sub.comment ? (
+                                        <p className="mt-1 text-sm text-foreground/90">&quot;{sub.comment}&quot;</p>
+                                      ) : null}
+                                    </div>
+                                    <Badge variant="secondary">{sub.voteCount} votes</Badge>
+                                  </li>
+                                ))}
+                              </ul>
+                            </motion.div>
+                          ) : null}
+                        </AnimatePresence>
+                      </Card>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {pastChallenges.length > previewPastChallenges.length ? (
+              <div className="mt-4">
+                <Button variant="outline" asChild>
+                  <Link href="/challenge/past">View more</Link>
+                </Button>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
 
         {status && !mySubmission ? (
           <div className="rounded-2xl border border-border bg-accent px-4 py-3 text-sm">

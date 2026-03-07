@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
-import { ArrowLeft, ArrowRight, Crown, Lock, Search, Sparkles, Tag } from "lucide-react";
+import { ArrowLeft, ArrowRight, Crown, Lock, Search, Sparkles, Tag, ThumbsUp } from "lucide-react";
 
 type RequestDetail = {
   id: string;
@@ -41,6 +41,8 @@ type Answer = {
   albumImage: string | null;
   comment: string | null;
   created_at: string;
+  niceRecoCount: number;
+  likedByMe: boolean;
 };
 
 export default function RequestDetailPage() {
@@ -109,7 +111,7 @@ export default function RequestDetailPage() {
         .select("id, responder_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at")
         .eq("request_id", requestId)
         .order("created_at", { ascending: false });
-      setAnswers(
+      const mappedAnswers =
         (answersData ?? []).map((a: any) => ({
           id: a.id,
           responder_id: a.responder_id,
@@ -118,11 +120,40 @@ export default function RequestDetailPage() {
           albumImage: a.spotify_album_image_url,
           comment: a.comment,
           created_at: a.created_at,
+          niceRecoCount: 0,
+          likedByMe: false,
+        })) ?? [];
+
+      if (!mappedAnswers.length) {
+        setAnswers([]);
+        setLoading(false);
+        return;
+      }
+
+      const answerIds = mappedAnswers.map((a) => a.id);
+      const { data: ratingRows } = await supabase
+        .from("qna_ratings")
+        .select("id, answer_id, rater_id, score")
+        .in("answer_id", answerIds)
+        .eq("score", 1);
+
+      const countByAnswer: Record<string, number> = {};
+      const likedByMeSet = new Set<string>();
+      (ratingRows ?? []).forEach((row: any) => {
+        countByAnswer[row.answer_id] = (countByAnswer[row.answer_id] ?? 0) + 1;
+        if (userId && row.rater_id === userId) likedByMeSet.add(row.answer_id);
+      });
+
+      setAnswers(
+        mappedAnswers.map((ans) => ({
+          ...ans,
+          niceRecoCount: countByAnswer[ans.id] ?? 0,
+          likedByMe: likedByMeSet.has(ans.id),
         }))
       );
 
       setLoading(false);
-  }, [requestId]);
+  }, [requestId, userId]);
 
   useEffect(() => {
     async function boot() {
@@ -274,6 +305,53 @@ export default function RequestDetailPage() {
     }
 
     await loadAll();
+  }
+
+  async function toggleNiceReco(answerId: string) {
+    if (!userId) return;
+
+    const current = answers.find((a) => a.id === answerId);
+    if (!current) return;
+
+    const nextLiked = !current.likedByMe;
+    const previous = answers;
+
+    setAnswers((prev) =>
+      prev.map((a) =>
+        a.id === answerId
+          ? {
+              ...a,
+              likedByMe: nextLiked,
+              niceRecoCount: Math.max(0, a.niceRecoCount + (nextLiked ? 1 : -1)),
+            }
+          : a
+      )
+    );
+
+    if (nextLiked) {
+      const { error } = await supabase.from("qna_ratings").insert({
+        answer_id: answerId,
+        rater_id: userId,
+        score: 1,
+      });
+
+      if (error) {
+        setAnswers(previous);
+        setStatus("Failed to add Nice Reco: " + error.message);
+      }
+    } else {
+      const { error } = await supabase
+        .from("qna_ratings")
+        .delete()
+        .eq("answer_id", answerId)
+        .eq("rater_id", userId)
+        .eq("score", 1);
+
+      if (error) {
+        setAnswers(previous);
+        setStatus("Failed to remove Nice Reco: " + error.message);
+      }
+    }
   }
 
   if (!authChecked) {
@@ -489,7 +567,7 @@ export default function RequestDetailPage() {
                       >
                         <Card className={isBest ? "border-primary/70 bg-primary/5" : ""}>
                           <CardContent className="flex items-start justify-between gap-4 p-5">
-                            <div className="min-w-0 space-y-1">
+                            <div className="min-w-0 space-y-2">
                               <div className="flex flex-wrap items-center gap-2">
                                 <div className="truncate text-sm font-semibold">{ans.trackName}</div>
                                 {isBest ? (
@@ -502,6 +580,14 @@ export default function RequestDetailPage() {
                                   <Badge variant="secondary">My answer</Badge>
                                 ) : null}
                               </div>
+                              {ans.albumImage ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={ans.albumImage}
+                                  alt={ans.trackName}
+                                  className="h-14 w-14 rounded-xl border border-border object-cover"
+                                />
+                              ) : null}
                               <div className="truncate text-xs text-muted-foreground">{ans.artistName}</div>
                               {ans.comment ? (
                                 <div className="text-sm text-foreground/90">“{ans.comment}”</div>
@@ -512,6 +598,15 @@ export default function RequestDetailPage() {
                             </div>
 
                             <div className="flex flex-col items-end gap-2">
+                              <Button
+                                variant={ans.likedByMe ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => toggleNiceReco(ans.id)}
+                                className={ans.likedByMe ? "bg-blue-600 text-white hover:bg-blue-500" : ""}
+                              >
+                                <ThumbsUp className="h-4 w-4" />
+                                {ans.likedByMe ? "Liked" : "Nice Reco"} ({ans.niceRecoCount})
+                              </Button>
                               {userId === request.requester_id && !isBest ? (
                                 <Button variant="outline" size="sm" onClick={() => markBest(ans.id)}>
                                   <Crown className="h-4 w-4" />
