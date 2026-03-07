@@ -45,7 +45,7 @@ export default function BestRecosPage() {
         byId[a.id] = a;
       });
 
-      const merged: BestReco[] =
+      const merged =
         reqs?.map((r: any) => {
           const ans = byId[r.best_answer_id];
           if (!ans) return null;
@@ -56,9 +56,9 @@ export default function BestRecosPage() {
             trackName: ans.spotify_track_name,
             artistName: ans.spotify_artist_name,
           };
-        }).filter(Boolean) ?? [];
+        }).filter((row): row is BestReco => row !== null) ?? [];
 
-      setItems(merged as BestReco[]);
+      setItems(merged);
       setLoading(false);
     }
 
