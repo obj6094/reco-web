@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { KeyRound, Mail } from "lucide-react";
+import { Eye, EyeOff, KeyRound, Mail, UserRound } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,6 +16,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -84,33 +85,28 @@ export default function LoginPage() {
         setMessage("Check your inbox to verify your email.");
       } else {
         if (!identifier || !password) {
-          setMessage("Please enter your email or username and password.");
+          setMessage("Please enter your login ID and password.");
           return;
         }
 
-        let loginEmail = identifier.trim();
+        const loginId = identifier.trim();
+        const { data: profile, error: lookupError } = await supabase
+          .from("profiles")
+          .select("email")
+          .eq("username", loginId)
+          .maybeSingle();
 
-        // If identifier does not look like an email, treat it as username
-        if (!loginEmail.includes("@")) {
-          const { data: profile, error: lookupError } = await supabase
-            .from("profiles")
-            .select("email")
-            .eq("username", loginEmail)
-            .maybeSingle();
-
-          if (lookupError) {
-            setMessage("Could not look up username. Please try again.");
-            return;
-          }
-          if (!profile?.email) {
-            setMessage("User not found");
-            return;
-          }
-          loginEmail = profile.email;
+        if (lookupError) {
+          setMessage("Could not look up login ID. Please try again.");
+          return;
+        }
+        if (!profile?.email) {
+          setMessage("User not found");
+          return;
         }
 
         const { error } = await supabase.auth.signInWithPassword({
-          email: loginEmail,
+          email: profile.email,
           password,
         });
 
@@ -197,10 +193,10 @@ export default function LoginPage() {
               <form onSubmit={handleSubmit} className="space-y-3">
                 {mode === "login" ? (
                   <div className="relative">
-                    <Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <UserRound className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       type="text"
-                      placeholder="Email or Username"
+                      placeholder="Login ID"
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
                       className="pl-11"
@@ -225,13 +221,21 @@ export default function LoginPage() {
                   <div className="relative">
                     <KeyRound className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       placeholder="Password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="pl-11"
+                      className="pl-11 pr-10"
                       autoComplete="current-password"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
                 ) : null}
 

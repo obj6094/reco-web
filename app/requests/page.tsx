@@ -294,6 +294,9 @@ export default function RequestsPage() {
     if (req.answersCount > 0) return { label: "Choose best", variant: "default" };
     return { label: "Awaiting answers", variant: "secondary" };
   }
+  const previewBestRecos = publicBestRecos.slice(0, 6);
+  const previewMyRequests = myRequests.slice(0, 5);
+  const previewMyAnswers = myAnswers.slice(0, 5);
 
   return (
     <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-10 text-foreground">
@@ -355,7 +358,7 @@ export default function RequestsPage() {
                     }}
                     className="grid gap-3 md:grid-cols-2"
                   >
-                    {publicBestRecos.map((item) => (
+                    {previewBestRecos.map((item) => (
                       <motion.div
                         key={item.id}
                         variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
@@ -401,6 +404,13 @@ export default function RequestsPage() {
                     ))}
                   </motion.div>
                 )}
+                {publicBestRecos.length > previewBestRecos.length ? (
+                  <div className="mt-4">
+                    <Button variant="outline" asChild>
+                      <Link href="/requests/best-recos">View more</Link>
+                    </Button>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           </>
@@ -517,7 +527,7 @@ export default function RequestsPage() {
                   />
                 ) : (
                   <ul className="space-y-2">
-                    {myRequests.map((req) => {
+                    {previewMyRequests.map((req) => {
                       const { label, variant } = myRequestStatus(req);
                       return (
                         <li key={req.id}>
@@ -542,6 +552,13 @@ export default function RequestsPage() {
                     })}
                   </ul>
                 )}
+                {myRequests.length > previewMyRequests.length ? (
+                  <div className="mt-4">
+                    <Button variant="outline" asChild>
+                      <Link href="/requests/my-requests">View more</Link>
+                    </Button>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
 
@@ -567,7 +584,7 @@ export default function RequestsPage() {
                   />
                 ) : (
                   <ul className="space-y-2">
-                    {myAnswers.map((entry) => (
+                    {previewMyAnswers.map((entry) => (
                       <li key={entry.request_id}>
                         <Card>
                           <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
@@ -581,6 +598,13 @@ export default function RequestsPage() {
                     ))}
                   </ul>
                 )}
+                {myAnswers.length > previewMyAnswers.length ? (
+                  <div className="mt-4">
+                    <Button variant="outline" asChild>
+                      <Link href="/requests/my-answers">View more</Link>
+                    </Button>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           </>

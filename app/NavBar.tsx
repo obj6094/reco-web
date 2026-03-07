@@ -41,6 +41,12 @@ export function NavBar() {
     router.replace("/");
   }
 
+  function scrollToTopOnNavigate() {
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    });
+  }
+
   const links = [
     { href: "/", label: "Home", icon: Home, active: pathname === "/" },
     {
@@ -69,6 +75,8 @@ export function NavBar() {
         <div className="flex items-center gap-4">
           <Link
             href="/"
+            scroll
+            onClick={scrollToTopOnNavigate}
             className="inline-flex items-center gap-2 font-semibold tracking-tight text-foreground"
           >
             <span className="inline-block h-2 w-2 rounded-full bg-primary shadow-[0_0_20px_hsl(var(--primary)/0.65)]" />
@@ -82,6 +90,8 @@ export function NavBar() {
                 <Link
                   key={l.href}
                   href={l.href}
+                  scroll
+                  onClick={scrollToTopOnNavigate}
                   className={cn(
                     "inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
                     l.active && "bg-accent text-foreground"
@@ -117,6 +127,8 @@ export function NavBar() {
               <Link
                 key={l.href}
                 href={l.href}
+                scroll
+                onClick={scrollToTopOnNavigate}
                 className={cn(
                   "inline-flex flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
                   l.active && "bg-accent text-foreground"

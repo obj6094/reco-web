@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
-import { ArrowRight, LogOut, MessageCircle, Star, Trophy, User } from "lucide-react";
+import { ArrowRight, LogOut, MessageCircle, Pencil, Star, Trophy, User } from "lucide-react";
 
 type MySubmission = {
   id: string;
@@ -252,12 +252,19 @@ export default function ProfilePage() {
               <CardContent className="space-y-3">
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Nickname</label>
-                  <p className="text-lg font-semibold">{getDisplayName(nickname, username)}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-lg font-semibold">{getDisplayName(nickname, username)}</p>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                      <Link href="/profile/nickname" aria-label="Change nickname">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Link>
+                    </Button>
+                  </div>
                   <p className="text-xs text-muted-foreground">{`@${getDisplayName(nickname, username)}`}</p>
                 </div>
                 <div className="space-y-2">
                   <Button type="button" variant="outline" size="sm" asChild>
-                    <Link href="/profile/nickname">Change nickname</Link>
+                    <Link href="/profile/username">Change login ID</Link>
                   </Button>
                   <Button type="button" variant="outline" size="sm" asChild>
                     <Link href="/profile/password">Change password</Link>

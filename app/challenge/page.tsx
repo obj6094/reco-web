@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
-import { ArrowRight, ChevronDown, ChevronUp, Play, Search, ThumbsUp, Trophy, Music2, Flame } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, Play, Search, ThumbsUp, Trophy, Music2 } from "lucide-react";
 
 type Track = {
   id: string;
@@ -45,14 +45,6 @@ type PastChallengeItem = {
   topSubmissions: { trackName: string; artistName: string; albumImage: string | null; comment: string | null; voteCount: number }[];
 };
 
-type PublicTrendingItem = {
-  id: string;
-  trackName: string;
-  artistName: string;
-  albumImage: string | null;
-  voteCount: number;
-};
-
 export default function ChallengePage() {
   const router = useRouter();
   const [challenge, setChallenge] = useState<any>(null);
@@ -81,8 +73,6 @@ export default function ChallengePage() {
   const [pastChallenges, setPastChallenges] = useState<PastChallengeItem[]>([]);
   const [expandedPastId, setExpandedPastId] = useState<string | null>(null);
   const [loadingPast, setLoadingPast] = useState(false);
-  const [publicTrending, setPublicTrending] = useState<PublicTrendingItem[]>([]);
-  const [loadingPublicTrending, setLoadingPublicTrending] = useState(false);
 
   const embedUrl = useMemo(() => {
     if (!selected) return null;
@@ -135,7 +125,7 @@ export default function ChallengePage() {
   }, [router]);
 
   useEffect(() => {
-    if (!challenge || !userId) return;
+    if (!challenge) return;
 
     async function loadSubmissions() {
       setLoadingSubmissions(true);
@@ -219,6 +209,8 @@ export default function ChallengePage() {
     if (sortBy === "votes") return sortSubmissions(submissions);
     return [...submissions].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [submissions, sortBy]);
+  const previewSubmissions = sortedSubmissions.slice(0, 8);
+  const previewPastChallenges = pastChallenges.slice(0, 5);
 
   function challengeDuration(startsAt: string | null): string {
     if (!startsAt) return "";
@@ -263,39 +255,6 @@ export default function ChallengePage() {
       setLoadingPast(false);
     }
     loadPast();
-  }, [challenge?.id]);
-
-  useEffect(() => {
-    if (!challenge?.id) return;
-
-    async function loadPublicTrending() {
-      setLoadingPublicTrending(true);
-      const { data, error } = await supabase
-        .from("challenge_submissions")
-        .select("id, spotify_track_name, spotify_artist_name, spotify_album_image_url, challenge_votes(id)")
-        .eq("challenge_id", challenge.id);
-
-      if (error) {
-        setPublicTrending([]);
-        setLoadingPublicTrending(false);
-        return;
-      }
-
-      const mapped: PublicTrendingItem[] =
-        data?.map((row: any) => ({
-          id: row.id,
-          trackName: row.spotify_track_name,
-          artistName: row.spotify_artist_name,
-          albumImage: row.spotify_album_image_url,
-          voteCount: (row.challenge_votes ?? []).length,
-        })) ?? [];
-
-      mapped.sort((a, b) => b.voteCount - a.voteCount);
-      setPublicTrending(mapped.slice(0, 3));
-      setLoadingPublicTrending(false);
-    }
-
-    loadPublicTrending();
   }, [challenge?.id]);
 
   async function searchTracks() {
@@ -552,24 +511,109 @@ export default function ChallengePage() {
   return (
     <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-10 text-foreground">
       <div className="mx-auto max-w-5xl space-y-8">
-        {userId ? (
-          <section className="rounded-2xl border border-border bg-card px-6 py-10 md:px-10 md:py-14">
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary">Weekly Challenge</p>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight md:text-4xl lg:text-5xl">
-              {challenge.prompt}
-            </h1>
-            <div className="mt-4 flex flex-wrap items-center gap-4">
-              <span className="text-sm text-muted-foreground">
-                {challengeDuration(challenge.starts_at)}
-              </span>
-              <Button asChild>
-                <Link href="#submissions">
-                  Submit / Vote <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
+        <section className="rounded-2xl border border-border bg-card px-6 py-10 md:px-10 md:py-14">
+          <p className="text-xs font-semibold uppercase tracking-widest text-primary">Weekly Challenge</p>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight md:text-4xl lg:text-5xl">
+            {challenge.prompt}
+          </h1>
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            <span className="text-sm text-muted-foreground">
+              {challengeDuration(challenge.starts_at)}
+            </span>
+            {userId ? (
+              <p className="text-sm text-muted-foreground">
+                Submit your track here. Voting is available in the submissions list below.
+              </p>
+            ) : (
+              <div className="flex gap-2">
+                <Button asChild>
+                  <Link href="/login?mode=login">Log in</Link>
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link href="/login?mode=signup">Sign up</Link>
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {userId && !mySubmission ? (
+            <div className="mt-6 space-y-4 rounded-2xl border border-border bg-accent/30 p-4">
+              <div className="flex gap-2">
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search a song (e.g., Radiohead Creep)"
+                />
+                <Button onClick={searchTracks} disabled={searching || !query.trim()}>
+                  <Search className="h-4 w-4" />
+                  {searching ? "Searching..." : "Search"}
+                </Button>
+              </div>
+
+              {tracks.length ? (
+                <motion.div
+                  initial="hidden"
+                  animate="show"
+                  variants={{
+                    hidden: { opacity: 0, y: 8 },
+                    show: { opacity: 1, y: 0, transition: { staggerChildren: 0.05 } },
+                  }}
+                  className="grid gap-2"
+                >
+                  {tracks.map((t) => (
+                    <motion.button
+                      key={t.id}
+                      variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                      onClick={() => setSelected(t)}
+                      className={`text-left rounded-2xl border px-4 py-3 transition-colors ${
+                        selected?.id === t.id
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-accent/30 hover:bg-accent/50"
+                      }`}
+                    >
+                      <div className="text-sm font-semibold">{t.name}</div>
+                      <div className="text-xs text-muted-foreground">{t.artists}</div>
+                    </motion.button>
+                  ))}
+                </motion.div>
+              ) : null}
+
+              {selected ? (
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-border bg-accent/30 px-4 py-3">
+                    <div className="text-xs text-muted-foreground">Selected</div>
+                    <div className="text-sm font-semibold">
+                      {selected.name} - {selected.artists}
+                    </div>
+                  </div>
+
+                  {embedUrl ? (
+                    <iframe
+                      className="w-full rounded-2xl border border-border"
+                      src={embedUrl}
+                      width="100%"
+                      height="152"
+                      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                      loading="lazy"
+                    />
+                  ) : null}
+
+                  <Textarea
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    placeholder="One line: why this song?"
+                  />
+
+                  <Button onClick={submit} className="w-full">
+                    Submit
+                  </Button>
+                </div>
+              ) : null}
             </div>
-          </section>
-        ) : null}
+          ) : null}
+        </section>
 
         {!authChecked ? (
           <Card>
@@ -579,75 +623,93 @@ export default function ChallengePage() {
             </CardHeader>
           </Card>
         ) : !userId ? (
-          <motion.div whileHover={{ scale: 1.01 }} transition={{ duration: 0.15 }}>
-            <Card className="h-full border-primary/40 bg-primary/5">
-              <CardHeader className="space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <CardTitle className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-primary md:text-xl">
-                    <Trophy className="h-5 w-5 text-primary" />
-                    This Week&apos;s Challenge
-                  </CardTitle>
-                  <span className="text-xs text-muted-foreground">{challengeDuration(challenge.starts_at)}</span>
-                </div>
-                <CardDescription className="text-lg font-semibold leading-7 text-foreground md:text-xl">
-                  {challenge.prompt}
-                </CardDescription>
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle>This week&apos;s standings</CardTitle>
+                <CardDescription>Browse submissions and sort by votes or recent entries.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap gap-2">
-                    <Button asChild>
-                      <Link href="/login?mode=login">Log in</Link>
-                    </Button>
+              <CardContent>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Sort:</span>
+                  <div className="flex rounded-lg border border-border bg-muted/30 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setSortBy("votes")}
+                      className="relative rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                    >
+                      {sortBy === "votes" ? (
+                        <motion.span
+                          layoutId="submission-sort-pill"
+                          className="absolute inset-0 rounded-md bg-primary"
+                          transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                        />
+                      ) : null}
+                      <span
+                        className={`relative z-10 ${
+                          sortBy === "votes" ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Most Voted
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSortBy("recent")}
+                      className="relative rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                    >
+                      {sortBy === "recent" ? (
+                        <motion.span
+                          layoutId="submission-sort-pill"
+                          className="absolute inset-0 rounded-md bg-primary"
+                          transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                        />
+                      ) : null}
+                      <span
+                        className={`relative z-10 ${
+                          sortBy === "recent" ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Most Recent
+                      </span>
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  {loadingSubmissions && !submissions.length ? (
+                    <div className="text-sm text-muted-foreground">Loading submissions...</div>
+                  ) : submissions.length === 0 ? (
+                    <EmptyState
+                      icon={Music2}
+                      title="No submissions yet"
+                      description="No one has submitted to this challenge yet."
+                    />
+                  ) : (
+                    <ul className="grid gap-3 md:grid-cols-2">
+                      {previewSubmissions.map((s) => (
+                        <li key={s.id} className="rounded-xl border border-border bg-accent/30 p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-semibold">{s.trackName}</div>
+                              <div className="truncate text-xs text-muted-foreground">{s.artistName}</div>
+                            </div>
+                            <Badge variant="secondary">{s.voteCount} votes</Badge>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                {submissions.length > previewSubmissions.length ? (
+                  <div className="mt-4">
                     <Button variant="outline" asChild>
-                      <Link href="/login?mode=signup">Sign up</Link>
+                      <Link href="/challenge/submissions">View more</Link>
                     </Button>
                   </div>
-                  <Badge variant="secondary" className="gap-1">
-                    <Flame className="h-3.5 w-3.5" />
-                    Top 3 this week
-                  </Badge>
-                </div>
-
-                {loadingPublicTrending ? (
-                  <div className="text-sm text-muted-foreground">Loading...</div>
-                ) : publicTrending.length === 0 ? (
-                  <EmptyState
-                    icon={Music2}
-                    title="No trending recos yet"
-                    description="No votes yet. Be the first to join."
-                  />
-                ) : (
-                  <motion.div
-                    initial="hidden"
-                    animate="show"
-                    variants={{
-                      hidden: { opacity: 0, y: 6 },
-                      show: { opacity: 1, y: 0, transition: { staggerChildren: 0.06 } },
-                    }}
-                    className="grid gap-3 md:grid-cols-3"
-                  >
-                    {publicTrending.map((item, index) => (
-                      <motion.div
-                        key={item.id}
-                        variants={{ hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0 } }}
-                        className="flex flex-col gap-2 rounded-2xl border border-border bg-accent/40 p-3"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <Badge variant="secondary">#{index + 1}</Badge>
-                          <Badge variant="outline">{item.voteCount} votes</Badge>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold">{item.trackName}</div>
-                          <div className="truncate text-xs text-muted-foreground">{item.artistName}</div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                )}
+                ) : null}
               </CardContent>
             </Card>
-          </motion.div>
+          </>
         ) : (
           <>
             {mySubmission ? (
@@ -687,108 +749,7 @@ export default function ChallengePage() {
                   </CardContent>
                 </Card>
               </motion.div>
-            ) : (
-              <>
-              <Card id="your-submission">
-                <CardContent className="flex flex-wrap items-center justify-between gap-4 py-6">
-                  <p className="text-muted-foreground">You haven&apos;t submitted yet.</p>
-                  <Button asChild>
-                    <a href="#submit-form">Submit your Reco</a>
-                  </Button>
-                </CardContent>
-              </Card>
-              <Card id="submit-form">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Search className="h-4 w-4 text-primary" />
-                    Submit your Reco
-                  </CardTitle>
-                  <CardDescription>Pick a track that fits this week&apos;s prompt.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex gap-2">
-                    <Input
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search a song (e.g., Radiohead Creep)"
-                    />
-                    <Button onClick={searchTracks} disabled={searching || !query.trim()}>
-                      <Search className="h-4 w-4" />
-                      {searching ? "Searching..." : "Search"}
-                    </Button>
-                  </div>
-
-                  {tracks.length ? (
-                    <motion.div
-                      initial="hidden"
-                      animate="show"
-                      variants={{
-                        hidden: { opacity: 0, y: 8 },
-                        show: { opacity: 1, y: 0, transition: { staggerChildren: 0.05 } },
-                      }}
-                      className="grid gap-2"
-                    >
-                      {tracks.map((t) => (
-                        <motion.button
-                          key={t.id}
-                          variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
-                          whileHover={{ scale: 1.01 }}
-                          whileTap={{ scale: 0.99 }}
-                          onClick={() => setSelected(t)}
-                          className={`text-left rounded-2xl border px-4 py-3 transition-colors ${
-                            selected?.id === t.id
-                              ? "border-primary bg-primary/10"
-                              : "border-border bg-accent/30 hover:bg-accent/50"
-                          }`}
-                        >
-                          <div className="text-sm font-semibold">{t.name}</div>
-                          <div className="text-xs text-muted-foreground">{t.artists}</div>
-                        </motion.button>
-                      ))}
-                    </motion.div>
-                  ) : null}
-
-                  {selected ? (
-                    <div className="space-y-3">
-                      <div className="rounded-2xl border border-border bg-accent/30 px-4 py-3">
-                        <div className="text-xs text-muted-foreground">Selected</div>
-                        <div className="text-sm font-semibold">
-                          {selected.name} — {selected.artists}
-                        </div>
-                      </div>
-
-                      {embedUrl ? (
-                        <iframe
-                          className="w-full rounded-2xl border border-border"
-                          src={embedUrl}
-                          width="100%"
-                          height="152"
-                          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                          loading="lazy"
-                        />
-                      ) : null}
-
-                      <Textarea
-                        value={comment}
-                        onChange={(e) => setComment(e.target.value)}
-                        placeholder="One line: why this song?"
-                      />
-
-                      <Button onClick={submit} className="w-full">
-                        Submit
-                      </Button>
-                    </div>
-                  ) : null}
-
-                  {status ? (
-                    <div className="rounded-2xl border border-border bg-accent px-4 py-3 text-sm">
-                      {status}
-                    </div>
-                  ) : null}
-                </CardContent>
-              </Card>
-              </>
-            )}
+            ) : null}
 
             <Card id="submissions">
               <CardHeader>
@@ -859,7 +820,7 @@ export default function ChallengePage() {
                     className="grid gap-3 md:grid-cols-2"
                     transition={{ type: "spring", stiffness: 260, damping: 28 }}
                   >
-                    {sortedSubmissions.map((s) => (
+                    {previewSubmissions.map((s) => (
                       <motion.li
                         key={s.id}
                         layout
@@ -870,68 +831,70 @@ export default function ChallengePage() {
                       >
                         <Card className={s.isMine ? "border-primary/60 bg-primary/5" : ""}>
                           <CardContent className="p-4">
-                            <div className="flex items-start gap-4">
-                              <div className="h-14 w-14 overflow-hidden rounded-2xl border border-border bg-card">
-                                {s.albumImage ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={s.albumImage} alt={s.trackName} className="h-full w-full object-cover" />
-                                ) : null}
-                              </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <div className="truncate text-sm font-semibold">{s.trackName}</div>
-                                  {s.isMine ? <Badge variant="secondary">Yours</Badge> : null}
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex min-w-0 items-start gap-4">
+                                <div className="h-14 w-14 overflow-hidden rounded-2xl border border-border bg-card">
+                                  {s.albumImage ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={s.albumImage} alt={s.trackName} className="h-full w-full object-cover" />
+                                  ) : null}
                                 </div>
-                                <div className="truncate text-xs text-muted-foreground">{s.artistName}</div>
-                                {s.comment ? (
-                                  <div className="mt-2 line-clamp-2 text-sm text-foreground/90">“{s.comment}”</div>
-                                ) : null}
-                                <div className="mt-2 flex flex-wrap items-center gap-2">
-                                  <Badge variant="secondary">{s.voteCount} votes</Badge>
-                                  {s.submitterUsername ? (
-                                    <Link href={`/u/${s.submitterUsername}`} className="text-xs text-primary hover:underline">
-                                      <span className="font-medium">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <div className="truncate text-sm font-semibold">{s.trackName}</div>
+                                    {s.isMine ? <Badge variant="secondary">Yours</Badge> : null}
+                                  </div>
+                                  <div className="truncate text-xs text-muted-foreground">{s.artistName}</div>
+                                  {s.comment ? (
+                                    <div className="mt-2 line-clamp-2 text-sm text-foreground/90">“{s.comment}”</div>
+                                  ) : null}
+                                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    <Badge variant="secondary">{s.voteCount} votes</Badge>
+                                    {s.submitterUsername ? (
+                                      <Link href={`/u/${s.submitterUsername}`} className="text-xs text-primary hover:underline">
+                                        <span className="font-medium">
+                                          {getDisplayName(s.submitterNickname, s.submitterUsername)}
+                                        </span>
+                                        <span className="ml-1 text-muted-foreground">
+                                          @{getDisplayName(s.submitterNickname, s.submitterUsername)}
+                                        </span>
+                                      </Link>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">
                                         {getDisplayName(s.submitterNickname, s.submitterUsername)}
                                       </span>
-                                      <span className="ml-1 text-muted-foreground">
-                                        @{getDisplayName(s.submitterNickname, s.submitterUsername)}
-                                      </span>
-                                    </Link>
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground">
-                                      {getDisplayName(s.submitterNickname, s.submitterUsername)}
-                                    </span>
-                                  )}
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
 
-                            <div className="flex flex-col items-end gap-2">
-                              <motion.div
-                                whileTap={{ scale: 0.98 }}
-                                animate={s.viewerVoted ? { scale: 1.02 } : { scale: 1 }}
-                                transition={{ duration: 0.12 }}
-                              >
-                                <Button
-                                  size="sm"
-                                  variant={s.viewerVoted ? "default" : "outline"}
-                                  onClick={() => toggleVote(s)}
-                                  disabled={s.isMine || votingOnId === s.id}
+                              <div className="flex shrink-0 flex-col items-end gap-2">
+                                <motion.div
+                                  whileTap={{ scale: 0.98 }}
+                                  animate={s.viewerVoted ? { scale: 1.02 } : { scale: 1 }}
+                                  transition={{ duration: 0.12 }}
                                 >
-                                  <ThumbsUp className="h-4 w-4" />
-                                  {s.isMine ? "Mine" : votingOnId === s.id ? "…" : s.viewerVoted ? "Voted" : "Vote"}
-                                </Button>
-                              </motion.div>
-                              {s.spotify_track_id ? (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => setExpandedPlayId(expandedPlayId === s.id ? null : s.id)}
-                                >
-                                  <Play className="h-4 w-4" />
-                                  {expandedPlayId === s.id ? "Hide" : "Play"}
-                                </Button>
-                              ) : null}
+                                  <Button
+                                    size="sm"
+                                    variant={s.viewerVoted ? "default" : "outline"}
+                                    onClick={() => toggleVote(s)}
+                                    disabled={s.isMine || votingOnId === s.id}
+                                  >
+                                    <ThumbsUp className="h-4 w-4" />
+                                    {s.isMine ? "Mine" : votingOnId === s.id ? "…" : s.viewerVoted ? "Voted" : "Vote"}
+                                  </Button>
+                                </motion.div>
+                                {s.spotify_track_id ? (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setExpandedPlayId(expandedPlayId === s.id ? null : s.id)}
+                                  >
+                                    <Play className="h-4 w-4" />
+                                    {expandedPlayId === s.id ? "Hide" : "Play"}
+                                  </Button>
+                                ) : null}
+                              </div>
                             </div>
                               <AnimatePresence>
                                 {expandedPlayId === s.id && s.spotify_track_id ? (
@@ -961,6 +924,14 @@ export default function ChallengePage() {
                   </motion.ul>
                 )}
 
+                {submissions.length > previewSubmissions.length ? (
+                  <div className="mt-4">
+                    <Button variant="outline" asChild>
+                      <Link href="/challenge/submissions">View more</Link>
+                    </Button>
+                  </div>
+                ) : null}
+
                 {status && mySubmission ? (
                   <div className="mt-4 rounded-2xl border border-border bg-accent px-4 py-3 text-sm">
                     {status}
@@ -989,7 +960,7 @@ export default function ChallengePage() {
                   />
                 ) : (
                   <ul className="space-y-2">
-                    {pastChallenges.map((past) => {
+                    {previewPastChallenges.map((past) => {
                       const isExpanded = expandedPastId === past.id;
                       const top = past.topSubmissions[0];
                       return (
@@ -1058,6 +1029,13 @@ export default function ChallengePage() {
                     })}
                   </ul>
                 )}
+                {pastChallenges.length > previewPastChallenges.length ? (
+                  <div className="mt-4">
+                    <Button variant="outline" asChild>
+                      <Link href="/challenge/past">View more</Link>
+                    </Button>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           </>
