@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { getDisplayName } from "@/lib/auth";
@@ -45,6 +46,7 @@ type BestRecoFromRequest = {
 };
 
 export default function HomePage() {
+  const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -69,7 +71,19 @@ export default function HomePage() {
     async function boot() {
       // 클라이언트에서 세션 기반으로 로그인 상태 확인 (env 는 lib/supabaseClient.ts 에서만 사용)
       const { data: userData } = await supabase.auth.getUser();
-      setUserId(userData.user?.id ?? null);
+      const uid = userData.user?.id ?? null;
+      setUserId(uid);
+      if (uid) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("id", uid)
+          .maybeSingle();
+        if (!profile?.username) {
+          router.replace("/setup-account");
+          return;
+        }
+      }
       setAuthChecked(true);
 
       // weekly_challenges 는 RLS 에서 공개 조회가 가능해야 한다
@@ -98,7 +112,7 @@ export default function HomePage() {
     }
 
     boot();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (!userId || !current) {

@@ -156,10 +156,11 @@ export default function SetupAccountPage() {
           <CardHeader>
             <CardTitle>Complete your account</CardTitle>
             <CardDescription>
-              {email ? `Verified email: ${email}` : "Set your username and password to finish signup."}
+              Complete your account to start using Reco.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            {email ? <p className="text-sm text-muted-foreground">Verified email: {email}</p> : null}
             <form onSubmit={handleSubmit} className="space-y-3">
               <div className="space-y-1">
                 <Input

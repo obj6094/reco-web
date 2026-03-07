@@ -200,7 +200,7 @@ export default function LoginPage() {
                     <Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       type="text"
-                      placeholder="Email or username"
+                      placeholder="Email or Username"
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
                       className="pl-11"
