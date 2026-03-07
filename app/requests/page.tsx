@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
-import { ArrowRight, MessageCirclePlus, Send, Inbox, CheckCircle } from "lucide-react";
+import { ArrowRight, MessageCirclePlus, Send, Inbox, CheckCircle, Music2 } from "lucide-react";
 
 type QueueRequest = {
   id: string;
@@ -33,6 +33,17 @@ type MyAnswerEntry = {
   created_at: string;
 };
 
+type PublicBestReco = {
+  id: string;
+  prompt: string;
+  created_at: string;
+  trackId: string;
+  trackName: string;
+  artistName: string;
+  albumImage: string | null;
+  comment: string | null;
+};
+
 export default function RequestsPage() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
@@ -46,6 +57,8 @@ export default function RequestsPage() {
   const [myAnswers, setMyAnswers] = useState<MyAnswerEntry[]>([]);
   const [loadingQueue, setLoadingQueue] = useState(false);
   const [loadingMine, setLoadingMine] = useState(false);
+  const [publicBestRecos, setPublicBestRecos] = useState<PublicBestReco[]>([]);
+  const [loadingPublicBestRecos, setLoadingPublicBestRecos] = useState(false);
   const [status, setStatus] = useState("");
 
   const loadQueue = useCallback(async (uid: string) => {
@@ -159,6 +172,68 @@ export default function RequestsPage() {
     );
   }, []);
 
+  const loadPublicBestRecos = useCallback(async () => {
+    setLoadingPublicBestRecos(true);
+
+    const { data: reqs, error: reqError } = await supabase
+      .from("qna_requests")
+      .select("id, prompt, best_answer_id, created_at")
+      .not("best_answer_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (reqError) {
+      setPublicBestRecos([]);
+      setLoadingPublicBestRecos(false);
+      return;
+    }
+
+    const answerIds = (reqs ?? [])
+      .map((r: any) => r.best_answer_id)
+      .filter((id: string | null) => !!id);
+
+    if (!answerIds.length) {
+      setPublicBestRecos([]);
+      setLoadingPublicBestRecos(false);
+      return;
+    }
+
+    const { data: answers, error: ansError } = await supabase
+      .from("qna_answers")
+      .select("id, spotify_track_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment")
+      .in("id", answerIds);
+
+    if (ansError) {
+      setPublicBestRecos([]);
+      setLoadingPublicBestRecos(false);
+      return;
+    }
+
+    const answerById: Record<string, any> = {};
+    for (const a of answers ?? []) {
+      answerById[a.id as string] = a;
+    }
+
+    const merged: PublicBestReco[] =
+      reqs?.map((r: any) => {
+        const a = answerById[r.best_answer_id as string];
+        if (!a) return null;
+        return {
+          id: r.id as string,
+          prompt: r.prompt as string,
+          created_at: r.created_at as string,
+          trackId: a.spotify_track_id as string,
+          trackName: a.spotify_track_name as string,
+          artistName: a.spotify_artist_name as string,
+          albumImage: (a.spotify_album_image_url as string) ?? null,
+          comment: (a.comment as string | null) ?? null,
+        };
+      }).filter(Boolean) as PublicBestReco[] ?? [];
+
+    setPublicBestRecos(merged);
+    setLoadingPublicBestRecos(false);
+  }, []);
+
   useEffect(() => {
     async function boot() {
       const { data } = await supabase.auth.getUser();
@@ -166,7 +241,7 @@ export default function RequestsPage() {
       setUserId(uid);
       setAuthChecked(true);
       if (!uid) {
-        router.replace("/login");
+        await loadPublicBestRecos();
         return;
       }
       const { data: profile } = await supabase
@@ -185,7 +260,7 @@ export default function RequestsPage() {
       setLoadingMine(false);
     }
     boot();
-  }, [router, loadQueue, loadMyRequests, loadMyAnswers]);
+  }, [router, loadQueue, loadMyRequests, loadMyAnswers, loadPublicBestRecos]);
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -238,12 +313,97 @@ export default function RequestsPage() {
             </CardHeader>
           </Card>
         ) : !userId ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Redirecting</CardTitle>
-              <CardDescription>Sending you to the login page…</CardDescription>
-            </CardHeader>
-          </Card>
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle>Want to request or answer?</CardTitle>
+                <CardDescription>
+                  Log in or sign up to create requests and answer other users.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex gap-2">
+                <Button asChild>
+                  <Link href="/login?mode=login">Log in</Link>
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link href="/login?mode=signup">Sign up</Link>
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Best Recos</CardTitle>
+                <CardDescription>Selected best recommendations from recent requests.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingPublicBestRecos ? (
+                  <div className="text-sm text-muted-foreground">Loading best recos...</div>
+                ) : publicBestRecos.length === 0 ? (
+                  <EmptyState
+                    icon={Music2}
+                    title="No best recos yet"
+                    description="Best picks will appear here."
+                  />
+                ) : (
+                  <motion.div
+                    initial="hidden"
+                    animate="show"
+                    variants={{
+                      hidden: { opacity: 0, y: 10 },
+                      show: { opacity: 1, y: 0, transition: { staggerChildren: 0.05 } },
+                    }}
+                    className="grid gap-3 md:grid-cols-2"
+                  >
+                    {publicBestRecos.map((item) => (
+                      <motion.div
+                        key={item.id}
+                        variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
+                        whileHover={{ scale: 1.01 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        <Card>
+                          <CardHeader className="space-y-2">
+                            <CardTitle className="line-clamp-2 text-sm">{item.prompt}</CardTitle>
+                            <CardDescription>{new Date(item.created_at).toLocaleDateString()}</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            <div className="flex items-center gap-3">
+                              <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-xl border border-border bg-card">
+                                {item.albumImage ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={item.albumImage} alt={item.trackName} className="h-full w-full object-cover" />
+                                ) : null}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-semibold">{item.trackName}</div>
+                                <div className="truncate text-xs text-muted-foreground">{item.artistName}</div>
+                              </div>
+                            </div>
+                            {item.comment ? (
+                              <div className="rounded-2xl border border-border bg-accent/40 px-3 py-2 text-sm">
+                                “{item.comment}”
+                              </div>
+                            ) : null}
+                            {item.trackId ? (
+                              <iframe
+                                className="mt-1 w-full rounded-2xl border border-border"
+                                src={`https://open.spotify.com/embed/track/${item.trackId}`}
+                                width="100%"
+                                height="80"
+                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                                loading="lazy"
+                              />
+                            ) : null}
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                )}
+              </CardContent>
+            </Card>
+          </>
         ) : (
           <>
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>

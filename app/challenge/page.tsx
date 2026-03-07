@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
-import { ArrowRight, ChevronDown, ChevronUp, Play, Search, ThumbsUp, Trophy, Music2 } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, Play, Search, ThumbsUp, Trophy, Music2, Flame } from "lucide-react";
 
 type Track = {
   id: string;
@@ -45,6 +45,14 @@ type PastChallengeItem = {
   topSubmissions: { trackName: string; artistName: string; albumImage: string | null; comment: string | null; voteCount: number }[];
 };
 
+type PublicTrendingItem = {
+  id: string;
+  trackName: string;
+  artistName: string;
+  albumImage: string | null;
+  voteCount: number;
+};
+
 export default function ChallengePage() {
   const router = useRouter();
   const [challenge, setChallenge] = useState<any>(null);
@@ -73,6 +81,8 @@ export default function ChallengePage() {
   const [pastChallenges, setPastChallenges] = useState<PastChallengeItem[]>([]);
   const [expandedPastId, setExpandedPastId] = useState<string | null>(null);
   const [loadingPast, setLoadingPast] = useState(false);
+  const [publicTrending, setPublicTrending] = useState<PublicTrendingItem[]>([]);
+  const [loadingPublicTrending, setLoadingPublicTrending] = useState(false);
 
   const embedUrl = useMemo(() => {
     if (!selected) return null;
@@ -88,20 +98,20 @@ export default function ChallengePage() {
 
       // 보호된 페이지: 로그인 안 했으면 /login 으로 리다이렉트
       if (!uid) {
-        router.replace("/login");
         setAuthChecked(true);
-        return;
       }
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("username")
-        .eq("id", uid)
-        .maybeSingle();
-      if (!profile?.username) {
-        router.replace("/setup-account");
-        setAuthChecked(true);
-        return;
+      if (uid) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("id", uid)
+          .maybeSingle();
+        if (!profile?.username) {
+          router.replace("/setup-account");
+          setAuthChecked(true);
+          return;
+        }
       }
 
       // 최신 챌린지 가져오기
@@ -253,6 +263,39 @@ export default function ChallengePage() {
       setLoadingPast(false);
     }
     loadPast();
+  }, [challenge?.id]);
+
+  useEffect(() => {
+    if (!challenge?.id) return;
+
+    async function loadPublicTrending() {
+      setLoadingPublicTrending(true);
+      const { data, error } = await supabase
+        .from("challenge_submissions")
+        .select("id, spotify_track_name, spotify_artist_name, spotify_album_image_url, challenge_votes(id)")
+        .eq("challenge_id", challenge.id);
+
+      if (error) {
+        setPublicTrending([]);
+        setLoadingPublicTrending(false);
+        return;
+      }
+
+      const mapped: PublicTrendingItem[] =
+        data?.map((row: any) => ({
+          id: row.id,
+          trackName: row.spotify_track_name,
+          artistName: row.spotify_artist_name,
+          albumImage: row.spotify_album_image_url,
+          voteCount: (row.challenge_votes ?? []).length,
+        })) ?? [];
+
+      mapped.sort((a, b) => b.voteCount - a.voteCount);
+      setPublicTrending(mapped.slice(0, 3));
+      setLoadingPublicTrending(false);
+    }
+
+    loadPublicTrending();
   }, [challenge?.id]);
 
   async function searchTracks() {
@@ -509,22 +552,24 @@ export default function ChallengePage() {
   return (
     <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-10 text-foreground">
       <div className="mx-auto max-w-5xl space-y-8">
-        <section className="rounded-2xl border border-border bg-card px-6 py-10 md:px-10 md:py-14">
-          <p className="text-xs font-semibold uppercase tracking-widest text-primary">Weekly Challenge</p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight md:text-4xl lg:text-5xl">
-            {challenge.prompt}
-          </h1>
-          <div className="mt-4 flex flex-wrap items-center gap-4">
-            <span className="text-sm text-muted-foreground">
-              {challengeDuration(challenge.starts_at)}
-            </span>
-            <Button asChild>
-              <Link href="#submissions">
-                Submit / Vote <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-        </section>
+        {userId ? (
+          <section className="rounded-2xl border border-border bg-card px-6 py-10 md:px-10 md:py-14">
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">Weekly Challenge</p>
+            <h1 className="mt-2 text-3xl font-extrabold tracking-tight md:text-4xl lg:text-5xl">
+              {challenge.prompt}
+            </h1>
+            <div className="mt-4 flex flex-wrap items-center gap-4">
+              <span className="text-sm text-muted-foreground">
+                {challengeDuration(challenge.starts_at)}
+              </span>
+              <Button asChild>
+                <Link href="#submissions">
+                  Submit / Vote <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+          </section>
+        ) : null}
 
         {!authChecked ? (
           <Card>
@@ -534,12 +579,75 @@ export default function ChallengePage() {
             </CardHeader>
           </Card>
         ) : !userId ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Redirecting</CardTitle>
-              <CardDescription>Sending you to the login page…</CardDescription>
-            </CardHeader>
-          </Card>
+          <motion.div whileHover={{ scale: 1.01 }} transition={{ duration: 0.15 }}>
+            <Card className="h-full border-primary/40 bg-primary/5">
+              <CardHeader className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-primary md:text-xl">
+                    <Trophy className="h-5 w-5 text-primary" />
+                    This Week&apos;s Challenge
+                  </CardTitle>
+                  <span className="text-xs text-muted-foreground">{challengeDuration(challenge.starts_at)}</span>
+                </div>
+                <CardDescription className="text-lg font-semibold leading-7 text-foreground md:text-xl">
+                  {challenge.prompt}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild>
+                      <Link href="/login?mode=login">Log in</Link>
+                    </Button>
+                    <Button variant="outline" asChild>
+                      <Link href="/login?mode=signup">Sign up</Link>
+                    </Button>
+                  </div>
+                  <Badge variant="secondary" className="gap-1">
+                    <Flame className="h-3.5 w-3.5" />
+                    Top 3 this week
+                  </Badge>
+                </div>
+
+                {loadingPublicTrending ? (
+                  <div className="text-sm text-muted-foreground">Loading...</div>
+                ) : publicTrending.length === 0 ? (
+                  <EmptyState
+                    icon={Music2}
+                    title="No trending recos yet"
+                    description="No votes yet. Be the first to join."
+                  />
+                ) : (
+                  <motion.div
+                    initial="hidden"
+                    animate="show"
+                    variants={{
+                      hidden: { opacity: 0, y: 6 },
+                      show: { opacity: 1, y: 0, transition: { staggerChildren: 0.06 } },
+                    }}
+                    className="grid gap-3 md:grid-cols-3"
+                  >
+                    {publicTrending.map((item, index) => (
+                      <motion.div
+                        key={item.id}
+                        variants={{ hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0 } }}
+                        className="flex flex-col gap-2 rounded-2xl border border-border bg-accent/40 p-3"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <Badge variant="secondary">#{index + 1}</Badge>
+                          <Badge variant="outline">{item.voteCount} votes</Badge>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold">{item.trackName}</div>
+                          <div className="truncate text-xs text-muted-foreground">{item.artistName}</div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
         ) : (
           <>
             {mySubmission ? (
@@ -692,20 +800,42 @@ export default function ChallengePage() {
                       <button
                         type="button"
                         onClick={() => setSortBy("votes")}
-                        className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                          sortBy === "votes" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-                        }`}
+                        className="relative rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
                       >
-                        Most Voted
+                        {sortBy === "votes" ? (
+                          <motion.span
+                            layoutId="submission-sort-pill"
+                            className="absolute inset-0 rounded-md bg-primary"
+                            transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                          />
+                        ) : null}
+                        <span
+                          className={`relative z-10 ${
+                            sortBy === "votes" ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Most Voted
+                        </span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setSortBy("recent")}
-                        className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                          sortBy === "recent" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-                        }`}
+                        className="relative rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
                       >
-                        Most Recent
+                        {sortBy === "recent" ? (
+                          <motion.span
+                            layoutId="submission-sort-pill"
+                            className="absolute inset-0 rounded-md bg-primary"
+                            transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                          />
+                        ) : null}
+                        <span
+                          className={`relative z-10 ${
+                            sortBy === "recent" ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Most Recent
+                        </span>
                       </button>
                     </div>
                     <Badge variant="secondary">
@@ -724,13 +854,19 @@ export default function ChallengePage() {
                     description="Be the first to submit a track for this week."
                   />
                 ) : (
-                  <ul className="grid gap-3 md:grid-cols-2">
+                  <motion.ul
+                    layout
+                    className="grid gap-3 md:grid-cols-2"
+                    transition={{ type: "spring", stiffness: 260, damping: 28 }}
+                  >
                     {sortedSubmissions.map((s) => (
-                      <li key={s.id}>
-                        <motion.div
-                        variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
+                      <motion.li
+                        key={s.id}
+                        layout
                         whileHover={{ scale: 1.01 }}
-                        transition={{ duration: 0.15 }}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.18 }}
                       >
                         <Card className={s.isMine ? "border-primary/60 bg-primary/5" : ""}>
                           <CardContent className="p-4">
@@ -757,7 +893,9 @@ export default function ChallengePage() {
                                       <span className="font-medium">
                                         {getDisplayName(s.submitterNickname, s.submitterUsername)}
                                       </span>
-                                      <span className="ml-1 text-muted-foreground">@{s.submitterUsername}</span>
+                                      <span className="ml-1 text-muted-foreground">
+                                        @{getDisplayName(s.submitterNickname, s.submitterUsername)}
+                                      </span>
                                     </Link>
                                   ) : (
                                     <span className="text-xs text-muted-foreground">
@@ -818,10 +956,9 @@ export default function ChallengePage() {
                               </AnimatePresence>
                             </CardContent>
                         </Card>
-                      </motion.div>
-                      </li>
+                      </motion.li>
                     ))}
-                  </ul>
+                  </motion.ul>
                 )}
 
                 {status && mySubmission ? (

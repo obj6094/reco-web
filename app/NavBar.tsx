@@ -109,6 +109,26 @@ export function NavBar() {
           )}
         </div>
       </div>
+      <div className="border-t border-border/60 px-2 py-2 md:hidden">
+        <div className="mx-auto grid max-w-5xl grid-cols-4 gap-1">
+          {links.map((l) => {
+            const Icon = l.icon;
+            return (
+              <Link
+                key={l.href}
+                href={l.href}
+                className={cn(
+                  "inline-flex flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                  l.active && "bg-accent text-foreground"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                <span>{l.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
     </motion.nav>
   );
 }

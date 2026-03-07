@@ -636,11 +636,7 @@ export default function HomePage() {
                             <span className="w-5 text-xs text-muted-foreground">#{index + 1}</span>
                             <div className="min-w-0">
                               <div className="truncate font-semibold">{c.nickname}</div>
-                              {c.username ? (
-                                <div className="truncate text-xs text-muted-foreground">
-                                  @{c.username}
-                                </div>
-                              ) : null}
+                              <div className="truncate text-xs text-muted-foreground">@{c.nickname}</div>
                             </div>
                           </div>
                           <div className="text-right">

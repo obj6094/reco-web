@@ -223,7 +223,7 @@ export default function PublicProfilePage() {
               <User className="h-5 w-5 text-primary" />
               <span>{nickname || "user"}</span>
             </CardTitle>
-            <CardDescription>@{usernameParam}</CardDescription>
+            <CardDescription>@{nickname || "user"}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap items-end justify-between gap-4">
             <div className="space-y-1">

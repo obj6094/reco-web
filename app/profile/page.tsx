@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { getDisplayName, isValidPassword } from "@/lib/auth";
+import { getDisplayName } from "@/lib/auth";
 import {
   Card,
   CardContent,
@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
 import { ArrowRight, LogOut, MessageCircle, Star, Trophy, User } from "lucide-react";
@@ -45,13 +44,7 @@ export default function ProfilePage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [nickname, setNickname] = useState<string>("");
-  const [nicknameSaving, setNicknameSaving] = useState(false);
-  const [nicknameError, setNicknameError] = useState("");
   const [authChecked, setAuthChecked] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  const [passwordSaving, setPasswordSaving] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState("");
 
   const [recoScore, setRecoScore] = useState<number | null>(null);
   const [submissions, setSubmissions] = useState<MySubmission[]>([]);
@@ -201,82 +194,6 @@ export default function ProfilePage() {
     boot();
   }, [router]);
 
-  async function handleNicknameSave(e: FormEvent) {
-    e.preventDefault();
-    if (!userId) return;
-    if (!nickname.trim()) return;
-
-    setNicknameSaving(true);
-    setNicknameError("");
-    setStatus("");
-    try {
-      const nextNickname = nickname.trim();
-
-      const { data: duplicateNickname, error: nicknameLookupError } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("nickname", nextNickname)
-        .neq("id", userId)
-        .maybeSingle();
-
-      if (nicknameLookupError) {
-        setStatus("Could not validate nickname. Please try again.");
-        return;
-      }
-
-      if (duplicateNickname) {
-        setNicknameError("Nickname is already taken.");
-        return;
-      }
-
-      const { error } = await supabase
-        .from("profiles")
-        .update({ nickname: nextNickname })
-        .eq("id", userId);
-
-      if (error) {
-        const duplicateError = `${error.message}`.toLowerCase();
-        if (duplicateError.includes("nickname")) {
-          setNicknameError("Nickname is already taken.");
-        } else {
-          setStatus("Failed to update nickname: " + error.message);
-        }
-      } else {
-        setStatus("Nickname updated.");
-      }
-    } finally {
-      setNicknameSaving(false);
-    }
-  }
-
-  async function handlePasswordChange(e: FormEvent) {
-    e.preventDefault();
-    setPasswordMessage("");
-
-    if (!isValidPassword(newPassword)) {
-      setPasswordMessage("Password must be at least 8 characters and include letters and numbers.");
-      return;
-    }
-    if (newPassword !== confirmNewPassword) {
-      setPasswordMessage("Passwords do not match.");
-      return;
-    }
-
-    setPasswordSaving(true);
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) {
-        setPasswordMessage(error.message);
-      } else {
-        setPasswordMessage("Password updated.");
-        setNewPassword("");
-        setConfirmNewPassword("");
-      }
-    } finally {
-      setPasswordSaving(false);
-    }
-  }
-
   async function handleLogout() {
     await supabase.auth.signOut();
     router.replace("/login");
@@ -334,47 +251,21 @@ export default function ProfilePage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Nickname (display name)</label>
+                  <label className="text-xs font-medium text-muted-foreground">Nickname</label>
                   <p className="text-lg font-semibold">{getDisplayName(nickname, username)}</p>
-                  <p className="text-xs text-muted-foreground">{username ? `@${username}` : "@user"}</p>
+                  <p className="text-xs text-muted-foreground">{`@${getDisplayName(nickname, username)}`}</p>
                 </div>
-                <form onSubmit={handleNicknameSave} className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">Edit nickname</label>
-                  <Input
-                    value={nickname}
-                    onChange={(e) => setNickname(e.target.value)}
-                    placeholder="Your display name"
-                  />
-                  <Button type="submit" size="sm" disabled={nicknameSaving}>
-                    {nicknameSaving ? "Saving…" : "Save"}
+                <div className="space-y-2">
+                  <Button type="button" variant="outline" size="sm" asChild>
+                    <Link href="/profile/nickname">Change nickname</Link>
                   </Button>
-                  {nicknameError ? <p className="text-sm text-destructive">{nicknameError}</p> : null}
-                </form>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Username (handle)</label>
-                  <p className="text-sm text-muted-foreground">{username ? `@${username}` : "@user"}</p>
+                  <Button type="button" variant="outline" size="sm" asChild>
+                    <Link href="/profile/password">Change password</Link>
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Your login ID stays the same even if you change your nickname.
+                  </p>
                 </div>
-                <form onSubmit={handlePasswordChange} className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">Change password</label>
-                  <Input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="New password"
-                    autoComplete="new-password"
-                  />
-                  <Input
-                    type="password"
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    placeholder="Confirm new password"
-                    autoComplete="new-password"
-                  />
-                  <Button type="submit" size="sm" disabled={passwordSaving}>
-                    {passwordSaving ? "Updating..." : "Update password"}
-                  </Button>
-                  {passwordMessage ? <p className="text-sm text-muted-foreground">{passwordMessage}</p> : null}
-                </form>
                 <Button
                   type="button"
                   variant="outline"
