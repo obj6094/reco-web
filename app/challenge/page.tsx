@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { getDisplayName } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,6 +89,17 @@ export default function ChallengePage() {
       // 보호된 페이지: 로그인 안 했으면 /login 으로 리다이렉트
       if (!uid) {
         router.replace("/login");
+        setAuthChecked(true);
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", uid)
+        .maybeSingle();
+      if (!profile?.username) {
+        router.replace("/setup-account");
         setAuthChecked(true);
         return;
       }
@@ -742,12 +754,14 @@ export default function ChallengePage() {
                                   <Badge variant="secondary">{s.voteCount} votes</Badge>
                                   {s.submitterUsername ? (
                                     <Link href={`/u/${s.submitterUsername}`} className="text-xs text-primary hover:underline">
-                                      <span className="font-medium">{s.submitterNickname || "Anonymous"}</span>
+                                      <span className="font-medium">
+                                        {getDisplayName(s.submitterNickname, s.submitterUsername)}
+                                      </span>
                                       <span className="ml-1 text-muted-foreground">@{s.submitterUsername}</span>
                                     </Link>
                                   ) : (
                                     <span className="text-xs text-muted-foreground">
-                                      {s.submitterNickname || "Anonymous"}
+                                      {getDisplayName(s.submitterNickname, s.submitterUsername)}
                                     </span>
                                   )}
                                 </div>

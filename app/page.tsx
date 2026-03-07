@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { getDisplayName } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -80,7 +81,7 @@ export default function HomePage() {
         .limit(10);
 
       if (error) {
-        setStatus("챌린지 정보를 불러오지 못했어: " + error.message);
+        setStatus("Failed to load challenge data: " + error.message);
         setLoadingChallenges(false);
         return;
       }
@@ -121,7 +122,7 @@ export default function HomePage() {
         .maybeSingle();
 
       if (submissionError && submissionError.code !== "PGRST116") {
-        setStatus("내 제출 정보를 불러오지 못했어: " + submissionError.message);
+        setStatus("Failed to load your submission status: " + submissionError.message);
       }
 
       setSubmittedThisWeek(!!submissionRow);
@@ -133,7 +134,7 @@ export default function HomePage() {
         .eq("responder_id", uid);
 
       if (answersError) {
-        setStatus("내 QnA 정보를 불러오지 못했어: " + answersError.message);
+        setStatus("Failed to load your QnA data: " + answersError.message);
         return;
       }
 
@@ -150,7 +151,7 @@ export default function HomePage() {
         .in("best_answer_id", answerIds);
 
       if (bestError) {
-        setStatus("Best Reco 기록을 불러오지 못했어: " + bestError.message);
+        setStatus("Failed to load Best Reco history: " + bestError.message);
         return;
       }
 
@@ -309,7 +310,7 @@ export default function HomePage() {
         return {
           userId: uid,
           username: p.username ?? null,
-          nickname: p.nickname ?? p.username ?? "Anonymous",
+          nickname: getDisplayName(p.nickname, p.username),
           score,
         };
       });
@@ -497,7 +498,7 @@ export default function HomePage() {
           <Card>
             <CardHeader>
               <CardTitle>Loading</CardTitle>
-              <CardDescription>홈을 준비하는 중이야...</CardDescription>
+              <CardDescription>Preparing your home feed...</CardDescription>
             </CardHeader>
           </Card>
         ) : (
@@ -516,7 +517,7 @@ export default function HomePage() {
                     ) : null}
                   </div>
                   <CardDescription className="text-base">
-                    {current?.prompt ?? "아직 등록된 챌린지가 없어."}
+                    {current?.prompt ?? "No challenge has been posted yet."}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -541,12 +542,12 @@ export default function HomePage() {
                   </div>
 
                   {loadingTrending ? (
-                    <div className="text-sm text-muted-foreground">불러오는 중이야...</div>
+                    <div className="text-sm text-muted-foreground">Loading...</div>
                   ) : trending.length === 0 ? (
                     <EmptyState
                       icon={Music2}
                       title="No trending recos yet"
-                      description="아직 투표가 모이지 않았어. 먼저 참여해볼래?"
+                      description="No votes yet. Be the first to join."
                     />
                   ) : (
                     <motion.div
@@ -597,17 +598,17 @@ export default function HomePage() {
                     Top Curators
                   </CardTitle>
                   <CardDescription>
-                    Reco Score = Best Reco 횟수 + 제출이 받은 총 투표 수
+                    Reco Score = Best Reco count + total votes received on submissions
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {loadingCurators ? (
-                    <div className="text-sm text-muted-foreground">불러오는 중이야...</div>
+                    <div className="text-sm text-muted-foreground">Loading...</div>
                   ) : topCurators.length === 0 ? (
                     <EmptyState
                       icon={Users}
                       title="No curators yet"
-                      description="챌린지에 참여하고 QnA에 답변하면 상위 큐레이터에 오를 수 있어."
+                      description="Join challenges and answer QnA requests to appear here."
                     />
                   ) : (
                     <div className="space-y-2">
@@ -646,14 +647,14 @@ export default function HomePage() {
         <Card>
           <CardHeader>
             <CardTitle>Past Challenges</CardTitle>
-            <CardDescription>최근 챌린지와 1위 추천을 모아봤어.</CardDescription>
+            <CardDescription>Recent challenges and top recommendations.</CardDescription>
           </CardHeader>
           <CardContent>
             {past.length === 0 ? (
               <EmptyState
                 icon={Trophy}
                 title="No past challenges yet"
-                description="곧 지난 챌린지들이 여기에 쌓일 거야."
+                description="Past challenges will appear here soon."
               />
             ) : (
               <div className="grid gap-2">
@@ -679,11 +680,11 @@ export default function HomePage() {
         <Card>
           <CardHeader>
             <CardTitle>Best Recos from Requests</CardTitle>
-            <CardDescription>QnA 요청에서 선택된 Best Reco 모음이야.</CardDescription>
+            <CardDescription>Best Recos selected from QnA requests.</CardDescription>
           </CardHeader>
           <CardContent>
             {loadingBestFromRequests ? (
-              <div className="text-sm text-muted-foreground">불러오는 중이야...</div>
+              <div className="text-sm text-muted-foreground">Loading...</div>
             ) : bestFromRequests.length === 0 ? (
               <EmptyState
                 icon={Music2}

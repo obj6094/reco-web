@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { getDisplayName } from "@/lib/auth";
 import {
   Card,
   CardContent,
@@ -75,7 +76,7 @@ export default function PublicProfilePage() {
 
       const uid = profile.id as string;
       setUserId(uid);
-      setNickname((profile.nickname as string) ?? profile.username ?? null);
+      setNickname(getDisplayName(profile.nickname as string | null, profile.username as string | null));
 
       // Load challenge submissions for this user
       const { data: subRows, error: subError } = await supabase
@@ -220,7 +221,7 @@ export default function PublicProfilePage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5 text-primary" />
-              <span>{nickname || "Anonymous"}</span>
+              <span>{nickname || "user"}</span>
             </CardTitle>
             <CardDescription>@{usernameParam}</CardDescription>
           </CardHeader>

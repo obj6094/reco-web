@@ -169,6 +169,15 @@ export default function RequestsPage() {
         router.replace("/login");
         return;
       }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", uid)
+        .maybeSingle();
+      if (!profile?.username) {
+        router.replace("/setup-account");
+        return;
+      }
       setLoadingMine(true);
       await loadQueue(uid);
       await loadMyRequests(uid);

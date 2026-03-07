@@ -14,8 +14,6 @@ export default function LoginPage() {
   const router = useRouter();
 
   const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
-  const [nickname, setNickname] = useState("");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -35,13 +33,25 @@ export default function LoginPage() {
 
   useEffect(() => {
     async function checkSession() {
-      // If already logged in, redirect away from /login
       const { data } = await supabase.auth.getUser();
-      if (data.user) {
-        router.replace("/");
-      } else {
+      const user = data.user;
+      if (!user) {
         setCheckingSession(false);
+        return;
       }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profile?.username) {
+        router.replace("/");
+        return;
+      }
+
+      router.replace("/setup-account");
     }
 
     checkSession();
@@ -54,79 +64,46 @@ export default function LoginPage() {
 
     try {
       if (mode === "signup") {
-        // Basic client-side validation for signup
-        if (!email || !password || !username || !nickname) {
-          setMessage("Please fill in email, username, nickname, and password.");
-          return;
-        }
-        if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) {
-          setMessage("Username must be 3–20 characters (letters, numbers, underscore).");
-          return;
-        }
-        if (nickname.length < 2 || nickname.length > 20) {
-          setMessage("Nickname must be between 2 and 20 characters.");
+        if (!email) {
+          setMessage("Please enter your email.");
           return;
         }
 
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
+        const { error } = await supabase.auth.signInWithOtp({
+          email: email.trim(),
+          options: {
+            shouldCreateUser: true,
+            emailRedirectTo: `${window.location.origin}/setup-account`,
+          },
         });
 
         if (error) {
           setMessage(error.message);
           return;
         }
-
-        const user = data.user;
-        if (user) {
-          // After sign up, make sure we store profile info for username-based login
-          const { error: profileError } = await supabase
-            .from("profiles")
-            .upsert(
-              {
-                id: user.id,
-                username,
-                nickname,
-                email,
-              },
-              { onConflict: "id" }
-            );
-
-          if (profileError) {
-            setMessage(
-              "Signed up, but failed to save profile. You can try again later from the profile page."
-            );
-            return;
-          }
-        }
-
-        setMode("login");
-        setIdentifier(email);
-        setPassword("");
-        setMessage("Check your inbox to verify your email, then log in.");
+        setMessage("Check your inbox to verify your email.");
       } else {
         if (!identifier || !password) {
           setMessage("Please enter your email or username and password.");
           return;
         }
 
-        let loginEmail = identifier;
+        let loginEmail = identifier.trim();
 
         // If identifier does not look like an email, treat it as username
-        if (!identifier.includes("@")) {
+        if (!loginEmail.includes("@")) {
           const { data: profile, error: lookupError } = await supabase
             .from("profiles")
             .select("email")
-            .eq("username", identifier)
+            .eq("username", loginEmail)
             .maybeSingle();
 
           if (lookupError) {
-            setMessage("Could not look up username. Please try email login.");
+            setMessage("Could not look up username. Please try again.");
             return;
           }
           if (!profile?.email) {
-            setMessage("Username not found. Please check your username or use your email.");
+            setMessage("User not found");
             return;
           }
           loginEmail = profile.email;
@@ -140,7 +117,25 @@ export default function LoginPage() {
         if (error) {
           setMessage(error.message);
         } else {
-          router.replace("/");
+          const { data: userData } = await supabase.auth.getUser();
+          const user = userData.user;
+
+          if (!user) {
+            setMessage("Login failed. Please try again.");
+            return;
+          }
+
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("username")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          if (profile?.username) {
+            router.replace("/");
+          } else {
+            router.replace("/setup-account");
+          }
         }
       }
     } finally {
@@ -213,55 +208,41 @@ export default function LoginPage() {
                     />
                   </div>
                 ) : (
-                  <>
-                    <div className="relative">
-                      <Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        type="email"
-                        placeholder="Email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="pl-11"
-                        autoComplete="email"
-                      />
-                    </div>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
-                      type="text"
-                      placeholder="Username (3–20 chars, letters/numbers/underscore)"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      autoComplete="username"
+                      type="email"
+                      placeholder="Email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-11"
+                      autoComplete="email"
                     />
-                    <Input
-                      type="text"
-                      placeholder="Nickname (display name)"
-                      value={nickname}
-                      onChange={(e) => setNickname(e.target.value)}
-                      autoComplete="name"
-                    />
-                  </>
+                  </div>
                 )}
 
-                <div className="relative">
-                  <KeyRound className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    type="password"
-                    placeholder="Password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-11"
-                    autoComplete={mode === "login" ? "current-password" : "new-password"}
-                  />
-                </div>
+                {mode === "login" ? (
+                  <div className="relative">
+                    <KeyRound className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="password"
+                      placeholder="Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-11"
+                      autoComplete="current-password"
+                    />
+                  </div>
+                ) : null}
 
                 <Button type="submit" className="w-full" disabled={submitting}>
                   {submitting
                     ? mode === "login"
                       ? "Logging in…"
-                      : "Signing up…"
+                      : "Sending..."
                     : mode === "login"
                     ? "Log in"
-                    : "Sign up"}
+                    : "Send verification email"}
                 </Button>
               </form>
 
