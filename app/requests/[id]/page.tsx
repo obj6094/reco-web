@@ -439,8 +439,8 @@ export default function RequestDetailPage() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-10 text-foreground">
-      <div className="mx-auto max-w-3xl space-y-6">
+    <main className="min-h-[calc(100dvh-120px)] bg-background px-3 py-6 text-foreground sm:px-4 sm:py-8 md:py-10">
+      <div className="mx-auto w-full max-w-3xl space-y-5 sm:space-y-6">
         <Button variant="ghost" asChild className="px-0">
           <Link href="/requests">
             <ArrowLeft className="h-4 w-4" />
@@ -468,7 +468,7 @@ export default function RequestDetailPage() {
                       <Sparkles className="h-4 w-4 text-primary" />
                       QnA request
                     </CardTitle>
-                    <CardDescription className="text-[15px] font-semibold leading-relaxed tracking-tight text-foreground/90">
+                    <CardDescription className="break-words text-[15px] font-semibold leading-relaxed tracking-tight text-foreground/90">
                       {request.prompt}
                     </CardDescription>
                     <div className="text-xs text-muted-foreground">
@@ -523,13 +523,14 @@ export default function RequestDetailPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <form onSubmit={handleSearchSubmit} className="flex gap-2">
+                <form onSubmit={handleSearchSubmit} className="flex flex-col gap-2 sm:flex-row">
                   <Input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search a song"
+                    className="min-h-[44px] w-full"
                   />
-                  <Button type="submit" disabled={searching || !query.trim()}>
+                  <Button type="submit" disabled={searching || !query.trim()} className="min-h-[44px] shrink-0 sm:w-auto">
                     <Search className="h-4 w-4" />
                     {searching ? "Searching..." : "Search"}
                   </Button>
@@ -629,7 +630,7 @@ export default function RequestDetailPage() {
                         transition={{ duration: 0.15 }}
                       >
                         <Card className={isBest ? "border-primary/70 bg-primary/5" : ""}>
-                          <CardContent className="flex items-start justify-between gap-4 p-5">
+                          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:p-5">
                             <div className="min-w-0 space-y-2">
                               <div className="flex flex-wrap items-center gap-2">
                                 <div className="truncate text-sm font-semibold">{ans.trackName}</div>
@@ -672,7 +673,7 @@ export default function RequestDetailPage() {
                               </div>
                             </div>
 
-                            <div className="flex flex-col items-end gap-2">
+                            <div className="flex min-h-[44px] flex-row flex-wrap items-center gap-2 sm:flex-col sm:items-end [&>button]:min-h-[44px]">
                               {ans.trackId ? (
                                 <Button
                                   variant="outline"

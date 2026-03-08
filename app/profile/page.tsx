@@ -202,8 +202,8 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-10 text-foreground">
-      <div className="mx-auto max-w-5xl space-y-6">
+    <main className="min-h-[calc(100dvh-120px)] bg-background px-3 py-6 text-foreground sm:px-4 sm:py-8 md:py-10">
+      <div className="mx-auto w-full max-w-5xl space-y-5 sm:space-y-6">
         <div className="space-y-2">
           <h1 className="text-2xl font-extrabold tracking-tight">Profile</h1>
           <p className="text-sm text-muted-foreground">
@@ -211,7 +211,7 @@ export default function ProfilePage() {
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
             <Card className="h-full">
               <CardHeader>
@@ -275,11 +275,11 @@ export default function ProfilePage() {
                     Reco Score = (# times your answers were chosen as best) + (total votes on your challenge submissions)
                 </CardDescription>
               </CardHeader>
-              <CardContent className="flex items-end justify-between gap-4">
+              <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
                 <div className="text-4xl font-extrabold tracking-tight text-primary">
                   {recoScore ?? (loading ? "…" : "0")}
                 </div>
-                <Button variant="outline" asChild>
+                <Button variant="outline" asChild className="min-h-[44px]">
                   <Link href="/challenge">
                     Go to Challenge <ArrowRight className="h-4 w-4" />
                   </Link>

@@ -119,7 +119,7 @@ export function NavBar() {
           )}
         </div>
       </div>
-      <div className="border-t border-border/60 px-2 py-2 md:hidden">
+      <div className="border-t border-border/60 px-2 py-2.5 md:hidden">
         <div className="mx-auto grid max-w-5xl grid-cols-4 gap-1">
           {links.map((l) => {
             const Icon = l.icon;
@@ -130,12 +130,12 @@ export function NavBar() {
                 scroll
                 onClick={scrollToTopOnNavigate}
                 className={cn(
-                  "inline-flex flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                  "inline-flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-2.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent/80",
                   l.active && "bg-accent text-foreground"
                 )}
               >
-                <Icon className="h-4 w-4" />
-                <span>{l.label}</span>
+                <Icon className="h-5 w-5 shrink-0" />
+                <span className="truncate max-w-full">{l.label}</span>
               </Link>
             );
           })}

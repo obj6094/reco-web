@@ -126,8 +126,8 @@ export default function MyAnswersPage() {
   }, [router]);
 
   return (
-    <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-10 text-foreground">
-      <div className="mx-auto max-w-4xl space-y-4">
+    <main className="min-h-[calc(100dvh-120px)] bg-background px-3 py-6 text-foreground sm:px-4 sm:py-8 md:py-10">
+      <div className="mx-auto w-full max-w-4xl space-y-4">
         <Button variant="ghost" asChild className="px-0">
           <Link href="/requests">
             <ArrowLeft className="h-4 w-4" />

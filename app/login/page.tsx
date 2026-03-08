@@ -141,8 +141,8 @@ export default function LoginPage() {
 
   if (checkingSession) {
     return (
-      <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-16 text-foreground">
-        <div className="mx-auto max-w-md">
+      <main className="min-h-[calc(100dvh-120px)] bg-background px-3 py-8 text-foreground sm:px-4 sm:py-16">
+        <div className="mx-auto w-full max-w-md">
           <Card>
             <CardHeader>
               <CardTitle>Reco</CardTitle>
@@ -155,14 +155,14 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-16 text-foreground">
-      <div className="mx-auto grid max-w-5xl gap-10 md:grid-cols-2 md:items-center">
+    <main className="min-h-[calc(100dvh-120px)] bg-background px-3 py-8 text-foreground sm:px-4 sm:py-12 md:py-16">
+      <div className="mx-auto grid w-full max-w-5xl gap-6 sm:gap-8 md:grid-cols-2 md:items-center md:gap-10">
         <div className="space-y-4">
           <div className="inline-flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-primary shadow-[0_0_20px_hsl(var(--primary)/0.65)]" />
             <span className="text-sm font-semibold text-muted-foreground">Reco</span>
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight md:text-4xl">
+          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl md:text-4xl">
             Discover music through real people.
           </h1>
           <p className="text-sm leading-6 text-muted-foreground">

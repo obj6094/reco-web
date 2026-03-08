@@ -380,8 +380,8 @@ export default function RequestsPage() {
   const previewMyAnswers = myAnswers.slice(0, 5);
 
   return (
-    <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-10 text-foreground">
-      <div className="mx-auto max-w-5xl space-y-6">
+    <main className="min-h-[calc(100dvh-120px)] bg-background px-3 py-6 text-foreground sm:px-4 sm:py-8 md:py-10">
+      <div className="mx-auto w-full max-w-5xl space-y-5 sm:space-y-6">
         <div className="space-y-2">
           <h1 className="text-2xl font-extrabold tracking-tight">Requests</h1>
           <p className="text-sm text-muted-foreground">
@@ -437,7 +437,7 @@ export default function RequestsPage() {
                       hidden: { opacity: 0, y: 10 },
                       show: { opacity: 1, y: 0, transition: { staggerChildren: 0.05 } },
                     }}
-                    className="grid gap-3 md:grid-cols-2"
+                    className="grid grid-cols-1 gap-3 sm:grid-cols-2"
                   >
                     {previewBestRecos.map((item) => (
                       <motion.div
@@ -570,7 +570,7 @@ export default function RequestsPage() {
                     description="Check back later or ask for a Reco above."
                   />
                 ) : (
-                  <ul className="grid gap-3 md:grid-cols-3">
+                  <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
                     {queueForYou.map((req) => (
                       <li key={req.id}>
                         <Link href={`/requests/${req.id}`} className="block h-full">
@@ -615,7 +615,7 @@ export default function RequestsPage() {
                 <CardDescription>Requests you created. Open one to choose a Best Reco.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="mb-3 flex flex-wrap gap-2">
+                <div className="mb-3 flex flex-wrap gap-2 [&>button]:min-h-[44px]">
                   <Button
                     size="sm"
                     variant={myRequestFilter === "all" ? "default" : "outline"}

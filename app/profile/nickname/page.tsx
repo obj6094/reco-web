@@ -101,7 +101,7 @@ export default function NicknamePage() {
 
   if (loading) {
     return (
-      <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-16 text-foreground">
+      <main className="min-h-[calc(100dvh-120px)] bg-background px-3 py-8 text-foreground sm:px-4 sm:py-16">
         <div className="mx-auto max-w-md">
           <Card>
             <CardHeader>
@@ -115,7 +115,7 @@ export default function NicknamePage() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-16 text-foreground">
+    <main className="min-h-[calc(100dvh-120px)] bg-background px-3 py-8 text-foreground sm:px-4 sm:py-16">
       <div className="mx-auto max-w-md space-y-4">
         <Button variant="ghost" asChild className="px-0">
           <Link href="/profile">

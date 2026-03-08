@@ -139,8 +139,8 @@ export default function SetupAccountPage() {
 
   if (loadingSession) {
     return (
-      <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-16 text-foreground">
-        <div className="mx-auto max-w-md">
+      <main className="min-h-[calc(100dvh-120px)] bg-background px-3 py-8 text-foreground sm:px-4 sm:py-16">
+        <div className="mx-auto w-full max-w-md">
           <Card>
             <CardHeader>
               <CardTitle>Setting up account</CardTitle>
@@ -153,8 +153,8 @@ export default function SetupAccountPage() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-16 text-foreground">
-      <div className="mx-auto max-w-md">
+    <main className="min-h-[calc(100dvh-120px)] bg-background px-3 py-8 text-foreground sm:px-4 sm:py-16">
+      <div className="mx-auto w-full max-w-md">
         <Card>
           <CardHeader>
             <CardTitle>Complete your account</CardTitle>

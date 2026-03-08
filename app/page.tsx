@@ -439,11 +439,11 @@ export default function HomePage() {
   }, []);
 
   return (
-    <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-10 text-foreground">
-      <div className="mx-auto max-w-5xl space-y-8">
+    <main className="min-h-[calc(100dvh-120px)] bg-background px-3 py-6 text-foreground sm:px-4 sm:py-8 md:py-10">
+      <div className="mx-auto w-full max-w-5xl space-y-6 sm:space-y-8">
         {/* Hero */}
-        <div className="grid gap-6 md:grid-cols-2 md:items-center">
-          <div className="space-y-4">
+        <div className="grid gap-4 sm:gap-6 md:grid-cols-2 md:items-center">
+          <div className="space-y-3 sm:space-y-4">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary" className="gap-1">
                 <Sparkles className="h-3.5 w-3.5" />
@@ -454,13 +454,13 @@ export default function HomePage() {
                 Real people, real taste
               </Badge>
             </div>
-            <h1 className="text-4xl font-extrabold tracking-tight md:text-5xl">
+            <h1 className="text-2xl font-extrabold tracking-tight sm:text-4xl md:text-5xl">
               Discover music through real people.
             </h1>
             <p className="max-w-xl text-sm leading-6 text-muted-foreground">
               Recommend songs, vote together, and find your next favorite track.
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 [&>a]:min-h-[44px] [&>a]:min-w-[44px] [&>button]:min-h-[44px]">
               {userId ? (
                 <>
                   <Button asChild>
@@ -549,7 +549,7 @@ export default function HomePage() {
             </CardHeader>
           </Card>
         ) : (
-          <div className="grid gap-5 lg:grid-cols-3">
+          <div className="grid gap-4 sm:gap-5 lg:grid-cols-3">
             {/* Weekly challenge + trending combined */}
             <motion.div whileHover={{ scale: 1.01 }} transition={{ duration: 0.15 }} className="lg:col-span-2">
               <Card className="h-full">
@@ -563,9 +563,9 @@ export default function HomePage() {
                       <span className="text-xs text-muted-foreground">{currentRange}</span>
                     ) : null}
                   </div>
-                  <div className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-primary">This week's theme</p>
-                    <p className="mt-1 text-base font-semibold tracking-tight">
+                  <div className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-primary">This week&apos;s theme</p>
+                    <p className="mt-1 text-sm font-semibold leading-snug tracking-tight sm:text-base break-words">
                       {current?.prompt ?? "No challenge has been posted yet."}
                     </p>
                   </div>
@@ -607,7 +607,7 @@ export default function HomePage() {
                         hidden: { opacity: 0, y: 6 },
                         show: { opacity: 1, y: 0, transition: { staggerChildren: 0.06 } },
                       }}
-                      className="grid gap-3 md:grid-cols-3"
+                      className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3"
                     >
                       {trending.map((t, index) => (
                         <motion.div
@@ -666,7 +666,7 @@ export default function HomePage() {
                         <Link
                           key={c.userId}
                           href={c.username ? `/u/${c.username}` : "#"}
-                          className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-accent/40 px-3 py-2 text-sm transition-colors hover:bg-accent/60"
+                          className="flex min-h-[48px] items-center justify-between gap-3 rounded-2xl border border-border bg-accent/40 px-3 py-3 text-sm transition-colors hover:bg-accent/60 active:bg-accent/70"
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <span className="w-5 text-xs text-muted-foreground">#{index + 1}</span>
@@ -744,7 +744,7 @@ export default function HomePage() {
                   hidden: { opacity: 0, y: 10 },
                   show: { opacity: 1, y: 0, transition: { staggerChildren: 0.05 } },
                 }}
-                className="grid gap-3 md:grid-cols-2"
+                className="grid grid-cols-1 gap-3 sm:grid-cols-2"
               >
                 {bestFromRequests.map((item) => (
                   <motion.div
@@ -753,9 +753,9 @@ export default function HomePage() {
                     whileHover={{ scale: 1.01 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <Card className="border-border/80 bg-gradient-to-br from-card to-accent/20">
-                      <CardHeader className="space-y-2">
-                        <CardTitle className="line-clamp-2 text-sm">
+                    <Card className="w-full overflow-hidden border-border/80 bg-gradient-to-br from-card to-accent/20">
+                      <CardHeader className="space-y-2 p-4 sm:p-6">
+                        <CardTitle className="line-clamp-2 break-words text-sm">
                           {item.prompt}
                         </CardTitle>
                         <CardDescription>

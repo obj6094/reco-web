@@ -75,8 +75,8 @@ export default function ProfileChallengesPage() {
   }, [router]);
 
   return (
-    <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-10 text-foreground">
-      <div className="mx-auto max-w-4xl space-y-4">
+    <main className="min-h-[calc(100dvh-120px)] bg-background px-3 py-6 text-foreground sm:px-4 sm:py-8 md:py-10">
+      <div className="mx-auto w-full max-w-4xl space-y-4">
         <Button variant="ghost" asChild className="px-0">
           <Link href="/profile">
             <ArrowLeft className="h-4 w-4" />
@@ -105,13 +105,13 @@ export default function ProfileChallengesPage() {
                 description="Join this week's challenge and submit your first Reco."
               />
             ) : (
-              <ul className="grid gap-3 md:grid-cols-2">
+              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {items.map((s) => (
                   <li key={s.id}>
                     <Card>
-                      <CardContent className="space-y-4 p-5">
+                      <CardContent className="space-y-4 p-4 sm:p-5">
                         <div className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-3">
-                          <p className="text-base font-bold leading-snug tracking-tight text-primary">
+                          <p className="break-words text-base font-bold leading-snug tracking-tight text-primary">
                             {s.challengePrompt}
                           </p>
                         </div>

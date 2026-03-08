@@ -575,11 +575,11 @@ export default function ChallengePage() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-10 text-foreground">
-      <div className="mx-auto max-w-5xl space-y-8">
-        <section className="rounded-2xl border border-border bg-card px-6 py-10 md:px-10 md:py-14">
+    <main className="min-h-[calc(100dvh-120px)] bg-background px-3 py-6 text-foreground sm:px-4 sm:py-8 md:py-10">
+      <div className="mx-auto w-full max-w-5xl space-y-6 sm:space-y-8">
+        <section className="rounded-2xl border border-border bg-card px-4 py-6 sm:px-6 sm:py-8 md:px-10 md:py-14">
           <p className="text-xs font-semibold uppercase tracking-widest text-primary">Weekly Challenge</p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight md:text-4xl lg:text-5xl">
+          <h1 className="mt-2 break-words text-2xl font-extrabold tracking-tight sm:text-3xl md:text-4xl lg:text-5xl">
             {challenge.prompt}
           </h1>
           {userId ? (
@@ -598,15 +598,15 @@ export default function ChallengePage() {
                 {challengeDuration(challenge.starts_at)}
               </span>
               <Badge className="w-fit border border-primary/40 bg-primary/10 text-primary">{challengeDday(challenge.starts_at)}</Badge>
-              <div className="rounded-2xl border border-border bg-accent/30 p-4">
+              <div className="rounded-2xl border border-border bg-accent/30 p-3 sm:p-4">
                 <p className="text-sm text-foreground/90">
                   Log in or sign up to submit your track and vote on submissions.
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button asChild className="min-w-24">
+                <div className="mt-3 flex flex-wrap gap-2 [&>a]:min-h-[44px]">
+                  <Button asChild className="min-h-[44px] min-w-24">
                     <Link href="/login?mode=login">Log in</Link>
                   </Button>
-                  <Button variant="outline" asChild className="min-w-24">
+                  <Button variant="outline" asChild className="min-h-[44px] min-w-24">
                     <Link href="/login?mode=signup">Sign up</Link>
                   </Button>
                 </div>
@@ -615,14 +615,15 @@ export default function ChallengePage() {
           )}
 
           {userId && !mySubmission ? (
-            <div className="mt-6 space-y-4 rounded-2xl border border-border bg-accent/30 p-4">
-              <div className="flex gap-2">
+            <div className="mt-6 space-y-4 rounded-2xl border border-border bg-accent/30 p-3 sm:p-4">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search a song (e.g., Radiohead Creep)"
+                  className="min-h-[44px] w-full"
                 />
-                <Button onClick={searchTracks} disabled={searching || !query.trim()}>
+                <Button onClick={searchTracks} disabled={searching || !query.trim()} className="min-h-[44px] shrink-0 sm:w-auto">
                   <Search className="h-4 w-4" />
                   {searching ? "Searching..." : "Search"}
                 </Button>
@@ -708,9 +709,9 @@ export default function ChallengePage() {
                 <CardDescription>Browse submissions and sort by votes or recent entries.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm text-muted-foreground">Sort:</span>
-                  <div className="flex h-9 items-center rounded-xl border border-border bg-muted/40 p-1">
+                  <div className="flex h-9 min-h-[44px] items-center rounded-xl border border-border bg-muted/40 p-1">
                     <button
                       type="button"
                       onClick={() => setSortBy("votes")}
@@ -763,7 +764,7 @@ export default function ChallengePage() {
                       description="No one has submitted to this challenge yet."
                     />
                   ) : (
-                    <ul className="grid gap-3 md:grid-cols-2">
+                    <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       {previewSubmissions.map((s) => (
                         <li key={s.id} className="rounded-xl border border-border bg-accent/30 p-3">
                           <div className="flex items-center justify-between gap-3">
@@ -895,7 +896,7 @@ export default function ChallengePage() {
                 ) : (
                   <motion.ul
                     layout
-                    className="grid gap-3 md:grid-cols-2"
+                    className="grid grid-cols-1 gap-3 sm:grid-cols-2"
                     transition={{ type: "spring", stiffness: 260, damping: 28 }}
                   >
                     {previewSubmissions.map((s) => (
