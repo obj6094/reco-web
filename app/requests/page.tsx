@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
-import { ArrowRight, MessageCirclePlus, Send, Inbox, CheckCircle, Music2 } from "lucide-react";
+import { ArrowRight, MessageCirclePlus, Send, Inbox, CheckCircle, Music2, Play } from "lucide-react";
 
 type QueueRequest = {
   id: string;
@@ -59,6 +59,7 @@ export default function RequestsPage() {
   const [loadingMine, setLoadingMine] = useState(false);
   const [publicBestRecos, setPublicBestRecos] = useState<PublicBestReco[]>([]);
   const [loadingPublicBestRecos, setLoadingPublicBestRecos] = useState(false);
+  const [expandedPublicBestRecoId, setExpandedPublicBestRecoId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
 
   const loadQueue = useCallback(async (uid: string) => {
@@ -69,6 +70,22 @@ export default function RequestsPage() {
       .select("request_id")
       .eq("responder_id", uid);
     const answeredIds = new Set((answeredRows ?? []).map((r: any) => r.request_id));
+    const { data: myRatings } = await supabase
+      .from("qna_ratings")
+      .select("answer_id")
+      .eq("rater_id", uid)
+      .eq("score", 1);
+    const ratedAnswerIds = (myRatings ?? []).map((r: any) => r.answer_id).filter(Boolean);
+    const niceRecoHandledRequestIds = new Set<string>();
+    if (ratedAnswerIds.length) {
+      const { data: ratedAnswers } = await supabase
+        .from("qna_answers")
+        .select("id, request_id")
+        .in("id", ratedAnswerIds);
+      (ratedAnswers ?? []).forEach((row: any) => {
+        if (row.request_id) niceRecoHandledRequestIds.add(row.request_id);
+      });
+    }
     const { data: reqData, error } = await supabase
       .from("qna_requests")
       .select("id, prompt, created_at")
@@ -82,7 +99,9 @@ export default function RequestsPage() {
       return;
     }
     const reqs = reqData ?? [];
-    const unanswered = reqs.filter((r: any) => !answeredIds.has(r.id));
+    const unanswered = reqs.filter(
+      (r: any) => !answeredIds.has(r.id) && !niceRecoHandledRequestIds.has(r.id)
+    );
     const ids = unanswered.slice(0, 3).map((r: any) => r.id);
     let countByRequest: Record<string, number> = {};
     if (ids.length > 0) {
@@ -389,6 +408,18 @@ export default function RequestsPage() {
                               </div>
                             ) : null}
                             {item.trackId ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  setExpandedPublicBestRecoId((prev) => (prev === item.id ? null : item.id))
+                                }
+                              >
+                                <Play className="h-4 w-4" />
+                                {expandedPublicBestRecoId === item.id ? "Hide" : "Play"}
+                              </Button>
+                            ) : null}
+                            {item.trackId && expandedPublicBestRecoId === item.id ? (
                               <iframe
                                 className="mt-1 w-full rounded-2xl border border-border"
                                 src={`https://open.spotify.com/embed/track/${item.trackId}`}
@@ -396,6 +427,7 @@ export default function RequestsPage() {
                                 height="80"
                                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                                 loading="lazy"
+                                title={`Play ${item.trackName}`}
                               />
                             ) : null}
                           </CardContent>
@@ -429,10 +461,15 @@ export default function RequestsPage() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <form onSubmit={handleCreate} className="space-y-3">
+                    <label className="block text-sm font-medium text-foreground/90" htmlFor="request-prompt">
+                      What kind of song are you looking for?
+                    </label>
                     <Textarea
+                      id="request-prompt"
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       placeholder="e.g. A song for late-night coding."
+                      className="min-h-[120px] rounded-2xl border-border/70 bg-accent/20 px-4 py-3 text-sm leading-6 placeholder:text-muted-foreground/80"
                     />
                     <Button type="submit" disabled={creating}>
                       {creating ? "Creating…" : "Create request"}
@@ -474,13 +511,15 @@ export default function RequestsPage() {
                   <ul className="grid gap-3 md:grid-cols-3">
                     {queueForYou.map((req) => (
                       <li key={req.id}>
-                        <motion.div
+                        <Link href={`/requests/${req.id}`} className="block h-full">
+                          <motion.div
+                            className="h-full"
                           initial={{ opacity: 0, y: 8 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.15 }}
                           whileHover={{ scale: 1.01 }}
-                        >
-                          <Card className="h-full">
+                          >
+                            <Card className="h-full cursor-pointer transition-colors hover:bg-accent/40">
                             <CardHeader className="space-y-2">
                               <CardTitle className="text-sm font-medium leading-snug line-clamp-2">
                                 {req.prompt}
@@ -490,14 +529,11 @@ export default function RequestsPage() {
                               </CardDescription>
                             </CardHeader>
                             <CardContent className="pt-0">
-                              <Button variant="outline" size="sm" asChild className="w-full">
-                                <Link href={`/requests/${req.id}`}>
-                                  View & answer <ArrowRight className="ml-1 h-3 w-3" />
-                                </Link>
-                              </Button>
+                              <p className="text-xs text-muted-foreground">{req.answersCount} answer(s)</p>
                             </CardContent>
-                          </Card>
-                        </motion.div>
+                            </Card>
+                          </motion.div>
+                        </Link>
                       </li>
                     ))}
                   </ul>
@@ -531,22 +567,21 @@ export default function RequestsPage() {
                       const { label, variant } = myRequestStatus(req);
                       return (
                         <li key={req.id}>
-                          <Card>
-                            <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-                              <div className="min-w-0 flex-1">
-                                <p className="font-medium leading-snug">{req.prompt}</p>
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                  {new Date(req.created_at).toLocaleString()} · {req.answersCount} answer(s)
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant={variant}>{label}</Badge>
-                                <Button variant="outline" size="sm" asChild>
-                                  <Link href={`/requests/${req.id}`}>View</Link>
-                                </Button>
-                              </div>
-                            </CardContent>
-                          </Card>
+                          <Link href={`/requests/${req.id}`} className="block">
+                            <Card className="cursor-pointer transition-colors hover:bg-accent/40">
+                              <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-medium leading-snug">{req.prompt}</p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    {new Date(req.created_at).toLocaleString()} · {req.answersCount} answer(s)
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant={variant}>{label}</Badge>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </Link>
                         </li>
                       );
                     })}
@@ -586,14 +621,13 @@ export default function RequestsPage() {
                   <ul className="space-y-2">
                     {previewMyAnswers.map((entry) => (
                       <li key={entry.request_id}>
-                        <Card>
-                          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-                            <p className="min-w-0 flex-1 font-medium leading-snug line-clamp-2">{entry.prompt}</p>
-                            <Button variant="outline" size="sm" asChild>
-                              <Link href={`/requests/${entry.request_id}`}>View</Link>
-                            </Button>
-                          </CardContent>
-                        </Card>
+                        <Link href={`/requests/${entry.request_id}`} className="block">
+                          <Card className="cursor-pointer transition-colors hover:bg-accent/40">
+                            <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+                              <p className="min-w-0 flex-1 font-medium leading-snug line-clamp-2">{entry.prompt}</p>
+                            </CardContent>
+                          </Card>
+                        </Link>
                       </li>
                     ))}
                   </ul>

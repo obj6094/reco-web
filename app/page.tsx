@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { Flame, Sparkles, Trophy, Users, ArrowRight, Lock, Music2 } from "lucide-react";
+import { Flame, Sparkles, Trophy, Users, ArrowRight, Lock, Music2, Play } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
 
 type WeeklyChallenge = {
@@ -38,11 +38,13 @@ type BestRecoFromRequest = {
   id: string;
   prompt: string;
   created_at: string;
-  trackId: string;
+  requesterName: string;
+  responderName: string;
+  comment: string | null;
+  trackId: string | null;
   trackName: string;
   artistName: string;
   albumImage: string | null;
-  comment: string | null;
 };
 
 export default function HomePage() {
@@ -64,6 +66,7 @@ export default function HomePage() {
 
   const [bestFromRequests, setBestFromRequests] = useState<BestRecoFromRequest[]>([]);
   const [loadingBestFromRequests, setLoadingBestFromRequests] = useState(false);
+  const [expandedBestRecoId, setExpandedBestRecoId] = useState<string | null>(null);
 
   const [status, setStatus] = useState("");
 
@@ -345,7 +348,7 @@ export default function HomePage() {
       // qna_requests 의 best_answer_id 를 이용해 Best Reco 피드를 구성 (공개 조회)
       const { data: reqs, error: reqError } = await supabase
         .from("qna_requests")
-        .select("id, prompt, best_answer_id, created_at")
+        .select("id, prompt, best_answer_id, created_at, requester_id")
         .not("best_answer_id", "is", null)
         .order("created_at", { ascending: false })
         .limit(10);
@@ -368,7 +371,7 @@ export default function HomePage() {
       const { data: answers, error: ansError } = await supabase
         .from("qna_answers")
         .select(
-          "id, spotify_track_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment"
+          "id, responder_id, spotify_track_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment"
         )
         .in("id", answerIds);
 
@@ -382,6 +385,28 @@ export default function HomePage() {
         answerById[a.id as string] = a;
       }
 
+      const profileIds = Array.from(
+        new Set(
+          (reqs ?? [])
+            .map((r: any) => r.requester_id as string)
+            .concat((answers ?? []).map((a: any) => a.responder_id as string))
+            .filter(Boolean)
+        )
+      );
+      const profileMap: Record<string, { nickname: string | null; username: string | null }> = {};
+      if (profileIds.length) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, nickname, username")
+          .in("id", profileIds);
+        (profiles ?? []).forEach((p: any) => {
+          profileMap[p.id as string] = {
+            nickname: p.nickname ?? null,
+            username: p.username ?? null,
+          };
+        });
+      }
+
       const merged: BestRecoFromRequest[] =
         reqs?.map((r: any) => {
           const a = answerById[r.best_answer_id as string];
@@ -390,11 +415,19 @@ export default function HomePage() {
             id: r.id as string,
             prompt: r.prompt as string,
             created_at: r.created_at as string,
-            trackId: a.spotify_track_id as string,
-            trackName: a.spotify_track_name as string,
-            artistName: a.spotify_artist_name as string,
-            albumImage: (a.spotify_album_image_url as string) ?? null,
+            requesterName: getDisplayName(
+              profileMap[r.requester_id as string]?.nickname,
+              profileMap[r.requester_id as string]?.username
+            ),
+            responderName: getDisplayName(
+              profileMap[a.responder_id as string]?.nickname,
+              profileMap[a.responder_id as string]?.username
+            ),
             comment: (a.comment as string | null) ?? null,
+            trackId: (a.spotify_track_id as string | null) ?? null,
+            trackName: (a.spotify_track_name as string) ?? "Unknown track",
+            artistName: (a.spotify_artist_name as string) ?? "Unknown artist",
+            albumImage: (a.spotify_album_image_url as string | null) ?? null,
           };
         }).filter(Boolean) as BestRecoFromRequest[] ?? [];
 
@@ -740,13 +773,17 @@ export default function HomePage() {
                             ) : null}
                           </div>
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold">
-                              {item.trackName}
-                            </div>
-                            <div className="truncate text-xs text-muted-foreground">
-                              {item.artistName}
-                            </div>
+                            <div className="truncate text-sm font-semibold">{item.trackName}</div>
+                            <div className="truncate text-xs text-muted-foreground">{item.artistName}</div>
                           </div>
+                        </div>
+                        <div className="space-y-1 text-xs text-muted-foreground">
+                          <p>
+                            Request by <span className="font-medium text-foreground/90">@{item.requesterName}</span>
+                          </p>
+                          <p>
+                            Best Reco by <span className="font-medium text-foreground/90">@{item.responderName}</span>
+                          </p>
                         </div>
                         {item.comment ? (
                           <div className="rounded-2xl border border-border bg-accent/40 px-3 py-2 text-sm">
@@ -754,6 +791,16 @@ export default function HomePage() {
                           </div>
                         ) : null}
                         {item.trackId ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setExpandedBestRecoId((prev) => (prev === item.id ? null : item.id))}
+                          >
+                            <Play className="h-4 w-4" />
+                            {expandedBestRecoId === item.id ? "Hide" : "Play"}
+                          </Button>
+                        ) : null}
+                        {item.trackId && expandedBestRecoId === item.id ? (
                           <iframe
                             className="mt-1 w-full rounded-2xl border border-border"
                             src={`https://open.spotify.com/embed/track/${item.trackId}`}
@@ -761,6 +808,7 @@ export default function HomePage() {
                             height="80"
                             allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                             loading="lazy"
+                            title={`Play ${item.trackName}`}
                           />
                         ) : null}
                       </CardContent>

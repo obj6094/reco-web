@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
-import { ArrowLeft, ArrowRight, Crown, Lock, Search, Sparkles, Tag, ThumbsUp } from "lucide-react";
+import { ArrowLeft, ArrowRight, Crown, Lock, Play, Search, Sparkles, Tag, ThumbsUp } from "lucide-react";
 
 type RequestDetail = {
   id: string;
@@ -36,6 +36,7 @@ type Track = {
 type Answer = {
   id: string;
   responder_id: string;
+  trackId: string | null;
   trackName: string;
   artistName: string;
   albumImage: string | null;
@@ -61,6 +62,8 @@ export default function RequestDetailPage() {
   const [status, setStatus] = useState("");
 
   const [claiming, setClaiming] = useState(false);
+  const [niceRecoSubmittingId, setNiceRecoSubmittingId] = useState<string | null>(null);
+  const [handledByNiceReco, setHandledByNiceReco] = useState(false);
 
   // Answer submission state
   const [query, setQuery] = useState("");
@@ -69,6 +72,7 @@ export default function RequestDetailPage() {
   const [selected, setSelected] = useState<Track | null>(null);
   const [comment, setComment] = useState("");
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
+  const [expandedPlayAnswerId, setExpandedPlayAnswerId] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     if (!requestId) return;
@@ -108,13 +112,14 @@ export default function RequestDetailPage() {
 
       const { data: answersData } = await supabase
         .from("qna_answers")
-        .select("id, responder_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at")
+        .select("id, responder_id, spotify_track_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at")
         .eq("request_id", requestId)
         .order("created_at", { ascending: false });
       const mappedAnswers =
         (answersData ?? []).map((a: any) => ({
           id: a.id,
           responder_id: a.responder_id,
+          trackId: a.spotify_track_id ?? null,
           trackName: a.spotify_track_name,
           artistName: a.spotify_artist_name,
           albumImage: a.spotify_album_image_url,
@@ -125,6 +130,7 @@ export default function RequestDetailPage() {
         })) ?? [];
 
       if (!mappedAnswers.length) {
+        setHandledByNiceReco(false);
         setAnswers([]);
         setLoading(false);
         return;
@@ -143,6 +149,7 @@ export default function RequestDetailPage() {
         countByAnswer[row.answer_id] = (countByAnswer[row.answer_id] ?? 0) + 1;
         if (userId && row.rater_id === userId) likedByMeSet.add(row.answer_id);
       });
+      setHandledByNiceReco(likedByMeSet.size > 0);
 
       setAnswers(
         mappedAnswers.map((ans) => ({
@@ -185,11 +192,15 @@ export default function RequestDetailPage() {
     () => !!userId && claims.some((c) => c.claimer_id === userId),
     [claims, userId]
   );
+  const alreadySubmitted = useMemo(
+    () => !!userId && answers.some((a) => a.responder_id === userId),
+    [answers, userId]
+  );
   const canClaim =
     !!userId &&
     !!request &&
     !alreadyClaimed &&
-    claimsCount < 3 &&
+    !alreadySubmitted &&
     userId !== request.requester_id;
 
   async function handleClaim() {
@@ -200,6 +211,14 @@ export default function RequestDetailPage() {
     }
     if (!canClaim) {
       setStatus("You can no longer claim this request.");
+      return;
+    }
+    if (handledByNiceReco) {
+      setStatus("You already handled this request with Nice Reco.");
+      return;
+    }
+    if (alreadySubmitted) {
+      setStatus("You already submitted a track for this request.");
       return;
     }
 
@@ -239,6 +258,11 @@ export default function RequestDetailPage() {
     }
   }
 
+  async function handleSearchSubmit(e: FormEvent) {
+    e.preventDefault();
+    await searchTracks();
+  }
+
   async function handleSubmitAnswer(e: FormEvent) {
     e.preventDefault();
     setStatus("");
@@ -250,6 +274,14 @@ export default function RequestDetailPage() {
     if (!alreadyClaimed) {
       // 서버 RLS 로도 제한되겠지만, 클라이언트에서 한 번 더 막아준다
       setStatus("You must claim this request before answering.");
+      return;
+    }
+    if (handledByNiceReco) {
+      setStatus("You already handled this request with Nice Reco.");
+      return;
+    }
+    if (alreadySubmitted) {
+      setStatus("You already submitted a track for this request.");
       return;
     }
     if (!selected) {
@@ -307,51 +339,57 @@ export default function RequestDetailPage() {
     await loadAll();
   }
 
-  async function toggleNiceReco(answerId: string) {
+  async function handleNiceReco(answerId: string) {
     if (!userId) return;
+    if (!request) return;
+    if (request.requester_id === userId) {
+      setStatus("Request creator cannot use Nice Reco.");
+      return;
+    }
+    if (alreadySubmitted) {
+      setStatus("You already submitted a track for this request.");
+      return;
+    }
+    if (handledByNiceReco) {
+      setStatus("You already used Nice Reco for this request.");
+      return;
+    }
 
     const current = answers.find((a) => a.id === answerId);
     if (!current) return;
+    if (current.likedByMe) {
+      setStatus("You already used Nice Reco for this request.");
+      return;
+    }
 
-    const nextLiked = !current.likedByMe;
+    setNiceRecoSubmittingId(answerId);
     const previous = answers;
 
     setAnswers((prev) =>
       prev.map((a) =>
         a.id === answerId
-          ? {
-              ...a,
-              likedByMe: nextLiked,
-              niceRecoCount: Math.max(0, a.niceRecoCount + (nextLiked ? 1 : -1)),
-            }
+          ? { ...a, likedByMe: true, niceRecoCount: a.niceRecoCount + 1 }
           : a
       )
     );
 
-    if (nextLiked) {
-      const { error } = await supabase.from("qna_ratings").insert({
-        answer_id: answerId,
-        rater_id: userId,
-        score: 1,
-      });
+    const { error } = await supabase.from("qna_ratings").insert({
+      answer_id: answerId,
+      rater_id: userId,
+      score: 1,
+    });
 
-      if (error) {
-        setAnswers(previous);
-        setStatus("Failed to add Nice Reco: " + error.message);
-      }
-    } else {
-      const { error } = await supabase
-        .from("qna_ratings")
-        .delete()
-        .eq("answer_id", answerId)
-        .eq("rater_id", userId)
-        .eq("score", 1);
-
-      if (error) {
-        setAnswers(previous);
-        setStatus("Failed to remove Nice Reco: " + error.message);
-      }
+    if (error) {
+      setAnswers(previous);
+      setStatus("Failed to add Nice Reco: " + error.message);
+      setNiceRecoSubmittingId(null);
+      return;
     }
+
+    setHandledByNiceReco(true);
+    setStatus("Nice Reco saved. Loading next request...");
+    setNiceRecoSubmittingId(null);
+    router.push("/requests");
   }
 
   if (!authChecked) {
@@ -422,7 +460,7 @@ export default function RequestDetailPage() {
                     </div>
                   </div>
                   <Badge variant="secondary" className="mt-1">
-                    Claims {claimsCount}/3
+                    Claims {claimsCount}
                   </Badge>
                 </div>
               </>
@@ -439,10 +477,17 @@ export default function RequestDetailPage() {
                 </Button>
               ) : alreadyClaimed ? (
                 <Badge variant="success">You claimed this request</Badge>
+              ) : alreadySubmitted ? (
+                <Badge variant="secondary">You already answered this request</Badge>
+              ) : userId === request.requester_id ? (
+                <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <Lock className="mt-0.5 h-4 w-4" />
+                  You cannot claim your own request.
+                </div>
               ) : (
                 <div className="flex items-start gap-2 text-sm text-muted-foreground">
                   <Lock className="mt-0.5 h-4 w-4" />
-                  This request can no longer be claimed.
+                  Claim is unavailable right now.
                 </div>
               )}
             </CardContent>
@@ -450,7 +495,7 @@ export default function RequestDetailPage() {
         </Card>
 
         {/* Answer submission */}
-        {request && alreadyClaimed ? (
+        {request && alreadyClaimed && !handledByNiceReco && !alreadySubmitted ? (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
             <Card>
               <CardHeader>
@@ -460,17 +505,17 @@ export default function RequestDetailPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex gap-2">
+                <form onSubmit={handleSearchSubmit} className="flex gap-2">
                   <Input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search a song"
                   />
-                  <Button onClick={searchTracks} disabled={searching || !query.trim()}>
+                  <Button type="submit" disabled={searching || !query.trim()}>
                     <Search className="h-4 w-4" />
                     {searching ? "Searching..." : "Search"}
                   </Button>
-                </div>
+                </form>
 
                 {tracks.length ? (
                   <motion.div
@@ -592,20 +637,55 @@ export default function RequestDetailPage() {
                               {ans.comment ? (
                                 <div className="text-sm text-foreground/90">“{ans.comment}”</div>
                               ) : null}
+                              {expandedPlayAnswerId === ans.id && ans.trackId ? (
+                                <iframe
+                                  className="w-full rounded-xl border border-border"
+                                  src={`https://open.spotify.com/embed/track/${ans.trackId}`}
+                                  width="100%"
+                                  height="80"
+                                  allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                                  loading="lazy"
+                                  title={`Play ${ans.trackName}`}
+                                />
+                              ) : null}
                               <div className="text-xs text-muted-foreground">
                                 {new Date(ans.created_at).toLocaleString()}
                               </div>
                             </div>
 
                             <div className="flex flex-col items-end gap-2">
+                              {ans.trackId ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    setExpandedPlayAnswerId((prev) => (prev === ans.id ? null : ans.id))
+                                  }
+                                >
+                                  <Play className="h-4 w-4" />
+                                  {expandedPlayAnswerId === ans.id ? "Hide" : "Play"}
+                                </Button>
+                              ) : null}
                               <Button
                                 variant={ans.likedByMe ? "default" : "outline"}
                                 size="sm"
-                                onClick={() => toggleNiceReco(ans.id)}
+                                onClick={() => handleNiceReco(ans.id)}
                                 className={ans.likedByMe ? "bg-blue-600 text-white hover:bg-blue-500" : ""}
+                                disabled={
+                                  !!niceRecoSubmittingId ||
+                                  ans.likedByMe ||
+                                  handledByNiceReco ||
+                                  userId === request.requester_id ||
+                                  answers.some((a) => a.responder_id === userId)
+                                }
                               >
                                 <ThumbsUp className="h-4 w-4" />
-                                {ans.likedByMe ? "Liked" : "Nice Reco"} ({ans.niceRecoCount})
+                                {ans.likedByMe
+                                  ? "Liked"
+                                  : niceRecoSubmittingId === ans.id
+                                  ? "Saving..."
+                                  : "Nice Reco"}{" "}
+                                ({ans.niceRecoCount})
                               </Button>
                               {userId === request.requester_id && !isBest ? (
                                 <Button variant="outline" size="sm" onClick={() => markBest(ans.id)}>
