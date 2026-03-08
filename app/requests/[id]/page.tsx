@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { getDisplayName } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,7 @@ type Track = {
 type Answer = {
   id: string;
   responder_id: string;
+  responderName: string;
   trackId: string | null;
   trackName: string;
   artistName: string;
@@ -119,6 +121,7 @@ export default function RequestDetailPage() {
         (answersData ?? []).map((a: any) => ({
           id: a.id,
           responder_id: a.responder_id,
+          responderName: "user",
           trackId: a.spotify_track_id ?? null,
           trackName: a.spotify_track_name,
           artistName: a.spotify_artist_name,
@@ -151,9 +154,22 @@ export default function RequestDetailPage() {
       });
       setHandledByNiceReco(likedByMeSet.size > 0);
 
+      const responderIds = [...new Set(mappedAnswers.map((a) => a.responder_id).filter(Boolean))] as string[];
+      const responderMap: Record<string, string> = {};
+      if (responderIds.length) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, nickname, username")
+          .in("id", responderIds);
+        (profiles ?? []).forEach((p: any) => {
+          responderMap[p.id as string] = getDisplayName(p.nickname, p.username);
+        });
+      }
+
       setAnswers(
         mappedAnswers.map((ans) => ({
           ...ans,
+          responderName: responderMap[ans.responder_id] ?? "user",
           niceRecoCount: countByAnswer[ans.id] ?? 0,
           likedByMe: likedByMeSet.has(ans.id),
         }))
@@ -452,7 +468,7 @@ export default function RequestDetailPage() {
                       <Sparkles className="h-4 w-4 text-primary" />
                       QnA request
                     </CardTitle>
-                    <CardDescription className="text-base text-foreground/90">
+                    <CardDescription className="text-[15px] font-semibold leading-relaxed tracking-tight text-foreground/90">
                       {request.prompt}
                     </CardDescription>
                     <div className="text-xs text-muted-foreground">
@@ -479,6 +495,8 @@ export default function RequestDetailPage() {
                 <Badge variant="success">You claimed this request</Badge>
               ) : alreadySubmitted ? (
                 <Badge variant="secondary">You already answered this request</Badge>
+              ) : handledByNiceReco ? (
+                <Badge variant="secondary">You already used Nice Reco</Badge>
               ) : userId === request.requester_id ? (
                 <div className="flex items-start gap-2 text-sm text-muted-foreground">
                   <Lock className="mt-0.5 h-4 w-4" />
@@ -634,6 +652,7 @@ export default function RequestDetailPage() {
                                 />
                               ) : null}
                               <div className="truncate text-xs text-muted-foreground">{ans.artistName}</div>
+                              <div className="text-xs text-muted-foreground">by @{ans.responderName}</div>
                               {ans.comment ? (
                                 <div className="text-sm text-foreground/90">“{ans.comment}”</div>
                               ) : null}

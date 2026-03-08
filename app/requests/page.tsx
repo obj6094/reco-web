@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +31,9 @@ type MyAnswerEntry = {
   request_id: string;
   prompt: string;
   created_at: string;
+  trackName: string;
+  artistName: string;
+  mode: "answer" | "nice_reco";
 };
 
 type PublicBestReco = {
@@ -60,6 +63,7 @@ export default function RequestsPage() {
   const [publicBestRecos, setPublicBestRecos] = useState<PublicBestReco[]>([]);
   const [loadingPublicBestRecos, setLoadingPublicBestRecos] = useState(false);
   const [expandedPublicBestRecoId, setExpandedPublicBestRecoId] = useState<string | null>(null);
+  const [myRequestFilter, setMyRequestFilter] = useState<"all" | "pending" | "selected">("all");
   const [status, setStatus] = useState("");
 
   const loadQueue = useCallback(async (uid: string) => {
@@ -159,14 +163,63 @@ export default function RequestsPage() {
   const loadMyAnswers = useCallback(async (uid: string) => {
     const { data: ansRows, error: ansError } = await supabase
       .from("qna_answers")
-      .select("request_id")
+      .select("request_id, created_at, spotify_track_name, spotify_artist_name")
       .eq("responder_id", uid)
       .order("created_at", { ascending: false });
-    if (ansError || !ansRows?.length) {
+
+    const { data: ratingRows } = await supabase
+      .from("qna_ratings")
+      .select("answer_id, created_at")
+      .eq("rater_id", uid)
+      .eq("score", 1)
+      .order("created_at", { ascending: false });
+
+    const ratedAnswerIds = [...new Set((ratingRows ?? []).map((r: any) => r.answer_id).filter(Boolean))] as string[];
+    let ratedAnswerMap: Record<string, { request_id: string; trackName: string; artistName: string }> = {};
+    if (ratedAnswerIds.length) {
+      const { data: ratedAnswers } = await supabase
+        .from("qna_answers")
+        .select("id, request_id, spotify_track_name, spotify_artist_name")
+        .in("id", ratedAnswerIds);
+      (ratedAnswers ?? []).forEach((row: any) => {
+        ratedAnswerMap[row.id as string] = {
+          request_id: row.request_id,
+          trackName: row.spotify_track_name ?? "Unknown track",
+          artistName: row.spotify_artist_name ?? "Unknown artist",
+        };
+      });
+    }
+
+    const mergedRows: MyAnswerEntry[] = [];
+    (ansRows ?? []).forEach((row: any) => {
+      mergedRows.push({
+        request_id: row.request_id,
+        prompt: "",
+        created_at: row.created_at,
+        trackName: row.spotify_track_name ?? "Unknown track",
+        artistName: row.spotify_artist_name ?? "Unknown artist",
+        mode: "answer",
+      });
+    });
+    (ratingRows ?? []).forEach((row: any) => {
+      const rated = ratedAnswerMap[row.answer_id];
+      if (!rated) return;
+      mergedRows.push({
+        request_id: rated.request_id,
+        prompt: "",
+        created_at: row.created_at,
+        trackName: rated.trackName,
+        artistName: rated.artistName,
+        mode: "nice_reco",
+      });
+    });
+
+    if (!mergedRows.length || ansError) {
       setMyAnswers([]);
       return;
     }
-    const reqIds = [...new Set(ansRows.map((r: any) => r.request_id))];
+
+    const reqIds = [...new Set(mergedRows.map((r) => r.request_id))];
     const { data: reqData } = await supabase
       .from("qna_requests")
       .select("id, prompt, created_at")
@@ -177,16 +230,20 @@ export default function RequestsPage() {
     });
     const seen = new Set<string>();
     setMyAnswers(
-      ansRows
-        .filter((r: any) => {
-          if (seen.has(r.request_id)) return false;
-          seen.add(r.request_id);
+      mergedRows
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .filter((row) => {
+          if (seen.has(row.request_id)) return false;
+          seen.add(row.request_id);
           return true;
         })
-        .map((r: any) => ({
-          request_id: r.request_id,
-          prompt: byId[r.request_id]?.prompt ?? "",
-          created_at: byId[r.request_id]?.created_at ?? "",
+        .map((row) => ({
+          request_id: row.request_id,
+          prompt: byId[row.request_id]?.prompt ?? "",
+          created_at: row.created_at,
+          trackName: row.trackName,
+          artistName: row.artistName,
+          mode: row.mode,
         }))
     );
   }, []);
@@ -314,7 +371,12 @@ export default function RequestsPage() {
     return { label: "Awaiting answers", variant: "secondary" };
   }
   const previewBestRecos = publicBestRecos.slice(0, 6);
-  const previewMyRequests = myRequests.slice(0, 5);
+  const filteredMyRequests = useMemo(() => {
+    if (myRequestFilter === "selected") return myRequests.filter((r) => !!r.best_answer_id);
+    if (myRequestFilter === "pending") return myRequests.filter((r) => !r.best_answer_id);
+    return myRequests;
+  }, [myRequests, myRequestFilter]);
+  const previewMyRequests = filteredMyRequests.slice(0, 5);
   const previewMyAnswers = myAnswers.slice(0, 5);
 
   return (
@@ -469,7 +531,7 @@ export default function RequestsPage() {
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       placeholder="e.g. A song for late-night coding."
-                      className="min-h-[120px] rounded-2xl border-border/70 bg-accent/20 px-4 py-3 text-sm leading-6 placeholder:text-muted-foreground/80"
+                      className="min-h-[120px] rounded-2xl border-border/70 bg-accent/20 px-4 py-3 text-[15px] leading-7 tracking-[0.01em] placeholder:text-muted-foreground/75"
                     />
                     <Button type="submit" disabled={creating}>
                       {creating ? "Creating…" : "Create request"}
@@ -548,14 +610,37 @@ export default function RequestsPage() {
                     <Send className="h-4 w-4 text-primary" />
                     My Requests
                   </CardTitle>
-                  <Badge variant="secondary">{myRequests.length}</Badge>
+                  <Badge variant="secondary">{filteredMyRequests.length}</Badge>
                 </div>
                 <CardDescription>Requests you created. Open one to choose a Best Reco.</CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="mb-3 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant={myRequestFilter === "all" ? "default" : "outline"}
+                    onClick={() => setMyRequestFilter("all")}
+                  >
+                    All
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={myRequestFilter === "pending" ? "default" : "outline"}
+                    onClick={() => setMyRequestFilter("pending")}
+                  >
+                    Pending selection
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={myRequestFilter === "selected" ? "default" : "outline"}
+                    onClick={() => setMyRequestFilter("selected")}
+                  >
+                    Selected
+                  </Button>
+                </div>
                 {loadingMine && !myRequests.length ? (
                   <div className="text-sm text-muted-foreground">Loading…</div>
-                ) : myRequests.length === 0 ? (
+                ) : filteredMyRequests.length === 0 ? (
                   <EmptyState
                     icon={Send}
                     title="No requests yet"
@@ -571,7 +656,7 @@ export default function RequestsPage() {
                             <Card className="cursor-pointer transition-colors hover:bg-accent/40">
                               <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
                                 <div className="min-w-0 flex-1">
-                                  <p className="font-medium leading-snug">{req.prompt}</p>
+                                  <p className="font-semibold leading-relaxed tracking-tight">{req.prompt}</p>
                                   <p className="mt-1 text-xs text-muted-foreground">
                                     {new Date(req.created_at).toLocaleString()} · {req.answersCount} answer(s)
                                   </p>
@@ -587,7 +672,7 @@ export default function RequestsPage() {
                     })}
                   </ul>
                 )}
-                {myRequests.length > previewMyRequests.length ? (
+                {filteredMyRequests.length > previewMyRequests.length ? (
                   <div className="mt-4">
                     <Button variant="outline" asChild>
                       <Link href="/requests/my-requests">View more</Link>
@@ -624,7 +709,12 @@ export default function RequestsPage() {
                         <Link href={`/requests/${entry.request_id}`} className="block">
                           <Card className="cursor-pointer transition-colors hover:bg-accent/40">
                             <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-                              <p className="min-w-0 flex-1 font-medium leading-snug line-clamp-2">{entry.prompt}</p>
+                              <div className="min-w-0 flex-1">
+                                <p className="line-clamp-2 font-semibold leading-relaxed tracking-tight">{entry.prompt}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {entry.mode === "answer" ? "My Reco" : "My Nice Reco"}: {entry.trackName} - {entry.artistName}
+                                </p>
+                              </div>
                             </CardContent>
                           </Card>
                         </Link>

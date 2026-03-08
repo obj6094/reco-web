@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,12 +12,14 @@ type Item = {
   id: string;
   prompt: string;
   created_at: string;
+  best_answer_id: string | null;
 };
 
 export default function MyRequestsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Item[]>([]);
+  const [filter, setFilter] = useState<"all" | "pending" | "selected">("all");
 
   useEffect(() => {
     async function load() {
@@ -30,7 +32,7 @@ export default function MyRequestsPage() {
 
       const { data } = await supabase
         .from("qna_requests")
-        .select("id, prompt, created_at")
+        .select("id, prompt, created_at, best_answer_id")
         .eq("requester_id", uid)
         .order("created_at", { ascending: false });
 
@@ -40,6 +42,12 @@ export default function MyRequestsPage() {
 
     load();
   }, [router]);
+
+  const filtered = useMemo(() => {
+    if (filter === "selected") return items.filter((i) => !!i.best_answer_id);
+    if (filter === "pending") return items.filter((i) => !i.best_answer_id);
+    return items;
+  }, [items, filter]);
 
   return (
     <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-10 text-foreground">
@@ -56,16 +64,41 @@ export default function MyRequestsPage() {
             <CardDescription>All requests you created.</CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="mb-3 flex flex-wrap gap-2">
+              <Button size="sm" variant={filter === "all" ? "default" : "outline"} onClick={() => setFilter("all")}>
+                All
+              </Button>
+              <Button
+                size="sm"
+                variant={filter === "pending" ? "default" : "outline"}
+                onClick={() => setFilter("pending")}
+              >
+                Pending selection
+              </Button>
+              <Button
+                size="sm"
+                variant={filter === "selected" ? "default" : "outline"}
+                onClick={() => setFilter("selected")}
+              >
+                Selected
+              </Button>
+            </div>
             {loading ? (
               <div className="text-sm text-muted-foreground">Loading...</div>
-            ) : items.length === 0 ? (
+            ) : filtered.length === 0 ? (
               <div className="text-sm text-muted-foreground">No requests yet.</div>
             ) : (
               <ul className="space-y-2">
-                {items.map((item) => (
-                  <li key={item.id} className="rounded-xl border border-border bg-accent/30 px-3 py-3">
-                    <div className="text-sm font-semibold">{item.prompt}</div>
-                    <div className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString()}</div>
+                {filtered.map((item) => (
+                  <li key={item.id}>
+                    <Link href={`/requests/${item.id}`} className="block">
+                      <Card className="cursor-pointer transition-colors hover:bg-accent/40">
+                        <CardContent className="py-3">
+                          <div className="text-[15px] font-semibold leading-relaxed tracking-tight">{item.prompt}</div>
+                          <div className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString()}</div>
+                        </CardContent>
+                      </Card>
+                    </Link>
                   </li>
                 ))}
               </ul>

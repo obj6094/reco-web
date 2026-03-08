@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
-import { ArrowRight, LogOut, MessageCircle, Pencil, Star, Trophy, User } from "lucide-react";
+import { ArrowRight, LogOut, Pencil, Star, Trophy, User } from "lucide-react";
 
 type MySubmission = {
   id: string;
@@ -29,16 +29,6 @@ type MySubmission = {
   voteCount: number;
 };
 
-type MyAnswer = {
-  id: string;
-  request_id: string;
-  trackName: string;
-  artistName: string;
-  albumImage: string | null;
-  comment: string | null;
-  created_at: string;
-};
-
 export default function ProfilePage() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
@@ -48,7 +38,6 @@ export default function ProfilePage() {
 
   const [recoScore, setRecoScore] = useState<number | null>(null);
   const [submissions, setSubmissions] = useState<MySubmission[]>([]);
-  const [answers, setAnswers] = useState<MyAnswer[]>([]);
 
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
@@ -114,36 +103,19 @@ export default function ProfilePage() {
 
       setSubmissions(mappedSubs);
 
-      // My QnA answers
-      const { data: ansRows, error: ansError } = await supabase
-        .from("qna_answers")
-        .select("id, request_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at")
-        .eq("responder_id", uid)
-        .order("created_at", { ascending: false });
-
-      if (ansError) {
-        setStatus("Failed to load your QnA answers: " + ansError.message);
-      }
-
-      const mappedAns: MyAnswer[] =
-        ansRows?.map((row: any) => ({
-          id: row.id,
-          request_id: row.request_id,
-          trackName: row.spotify_track_name,
-          artistName: row.spotify_artist_name,
-          albumImage: row.spotify_album_image_url,
-          comment: row.comment,
-          created_at: row.created_at,
-        })) ?? [];
-
-      setAnswers(mappedAns);
-
       // Calculate Reco Score
       let bestRecoCount = 0;
       let voteCountTotal = 0;
 
-      if (mappedAns.length) {
-        const answerIds = mappedAns.map((a) => a.id);
+      const { data: answerRows, error: answerRowsError } = await supabase
+        .from("qna_answers")
+        .select("id")
+        .eq("responder_id", uid);
+      if (answerRowsError) {
+        setStatus("Failed to load your QnA data: " + answerRowsError.message);
+      }
+      const answerIds = (answerRows ?? []).map((a: any) => a.id);
+      if (answerIds.length) {
         const { data: bestReqRows, error: bestReqError } = await supabase
           .from("qna_requests")
           .select("best_answer_id")
@@ -322,11 +294,11 @@ export default function ProfilePage() {
             <div className="flex items-center justify-between gap-3">
               <CardTitle className="flex items-center gap-2">
                 <Trophy className="h-4 w-4 text-primary" />
-                My challenge submissions
+                My challenge history
               </CardTitle>
               <Badge variant="secondary">{submissions.length}</Badge>
             </div>
-            <CardDescription>Your challenge entries and votes received.</CardDescription>
+            <CardDescription>Open your full challenge records in a dedicated page.</CardDescription>
           </CardHeader>
           <CardContent>
             {loading && !submissions.length ? (
@@ -338,106 +310,11 @@ export default function ProfilePage() {
                 description="Join this week's challenge and submit your first Reco."
               />
             ) : (
-              <motion.div
-                initial="hidden"
-                animate="show"
-                variants={{
-                  hidden: { opacity: 0, y: 10 },
-                  show: { opacity: 1, y: 0, transition: { staggerChildren: 0.05 } },
-                }}
-                className="grid gap-3 md:grid-cols-2"
-              >
-                {submissions.map((s) => (
-                  <motion.div
-                    key={s.id}
-                    variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
-                    whileHover={{ scale: 1.01 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <Card>
-                      <CardContent className="flex items-start justify-between gap-4 p-5">
-                        <div className="min-w-0 space-y-1">
-                          <div className="truncate text-sm font-semibold">{s.trackName}</div>
-                          <div className="truncate text-xs text-muted-foreground">{s.artistName}</div>
-                          {s.comment ? (
-                            <div className="text-sm text-foreground/90">“{s.comment}”</div>
-                          ) : null}
-                          <div className="text-xs text-muted-foreground">
-                            {new Date(s.created_at).toLocaleString()}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-muted-foreground">Votes</div>
-                          <div className="text-xl font-extrabold text-primary">{s.voteCount}</div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))}
-              </motion.div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle className="flex items-center gap-2">
-                <MessageCircle className="h-4 w-4 text-primary" />
-                My QnA answers
-              </CardTitle>
-              <Badge variant="secondary">{answers.length}</Badge>
-            </div>
-            <CardDescription>Your QnA answers.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading && !answers.length ? (
-              <div className="text-sm text-muted-foreground">Loading…</div>
-            ) : answers.length === 0 ? (
-              <EmptyState
-                icon={MessageCircle}
-                title="No answers yet"
-                description="Answer a request and your Recos will appear here."
-              />
-            ) : (
-              <motion.div
-                initial="hidden"
-                animate="show"
-                variants={{
-                  hidden: { opacity: 0, y: 10 },
-                  show: { opacity: 1, y: 0, transition: { staggerChildren: 0.05 } },
-                }}
-                className="grid gap-3 md:grid-cols-2"
-              >
-                {answers.map((a) => (
-                  <motion.div
-                    key={a.id}
-                    variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
-                    whileHover={{ scale: 1.01 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <Card>
-                      <CardContent className="flex items-start justify-between gap-4 p-5">
-                        <div className="min-w-0 space-y-1">
-                          <div className="truncate text-sm font-semibold">{a.trackName}</div>
-                          <div className="truncate text-xs text-muted-foreground">{a.artistName}</div>
-                          {a.comment ? (
-                            <div className="text-sm text-foreground/90">“{a.comment}”</div>
-                          ) : null}
-                          <div className="text-xs text-muted-foreground">
-                            {new Date(a.created_at).toLocaleString()}
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href={`/requests/${a.request_id}`}>
-                            View <ArrowRight className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))}
-              </motion.div>
+              <Button variant="outline" asChild>
+                <Link href="/profile/challenges">
+                  Open my challenge history <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
             )}
           </CardContent>
         </Card>

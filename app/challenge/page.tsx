@@ -227,6 +227,20 @@ export default function ChallengePage() {
     return `${start.toLocaleDateString()} → ${end.toLocaleDateString()}`;
   }
 
+  function challengeDday(startsAt: string | null): string {
+    if (!startsAt) return "";
+    const start = new Date(startsAt);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    const now = new Date();
+    const diffMs = end.getTime() - now.getTime();
+    const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    if (days < 0) return "Closed";
+    if (days === 0) return "D-Day";
+    return `D-${days}`;
+  }
+
   useEffect(() => {
     if (!challenge?.id) return;
     async function loadPast() {
@@ -573,6 +587,7 @@ export default function ChallengePage() {
               <span className="text-sm text-muted-foreground">
                 {challengeDuration(challenge.starts_at)}
               </span>
+              <Badge className="border border-primary/40 bg-primary/10 text-primary">{challengeDday(challenge.starts_at)}</Badge>
               <p className="text-sm text-muted-foreground">
                 Submit your track here. Voting is available in the submissions list below.
               </p>
@@ -582,6 +597,7 @@ export default function ChallengePage() {
               <span className="block text-sm text-muted-foreground">
                 {challengeDuration(challenge.starts_at)}
               </span>
+              <Badge className="w-fit border border-primary/40 bg-primary/10 text-primary">{challengeDday(challenge.starts_at)}</Badge>
               <div className="rounded-2xl border border-border bg-accent/30 p-4">
                 <p className="text-sm text-foreground/90">
                   Log in or sign up to submit your track and vote on submissions.

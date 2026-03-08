@@ -12,6 +12,9 @@ type Item = {
   request_id: string;
   created_at: string;
   prompt: string;
+  trackName: string;
+  artistName: string;
+  mode: "answer" | "nice_reco";
 };
 
 export default function MyAnswersPage() {
@@ -30,11 +33,58 @@ export default function MyAnswersPage() {
 
       const { data: answerRows } = await supabase
         .from("qna_answers")
-        .select("request_id, created_at")
+        .select("request_id, created_at, spotify_track_name, spotify_artist_name")
         .eq("responder_id", uid)
         .order("created_at", { ascending: false });
 
-      const reqIds = [...new Set((answerRows ?? []).map((r: any) => r.request_id))];
+      const { data: ratingRows } = await supabase
+        .from("qna_ratings")
+        .select("answer_id, created_at")
+        .eq("rater_id", uid)
+        .eq("score", 1)
+        .order("created_at", { ascending: false });
+
+      const ratedAnswerIds = [...new Set((ratingRows ?? []).map((r: any) => r.answer_id).filter(Boolean))] as string[];
+      let ratedAnswerMap: Record<string, { request_id: string; trackName: string; artistName: string }> = {};
+      if (ratedAnswerIds.length) {
+        const { data: ratedAnswers } = await supabase
+          .from("qna_answers")
+          .select("id, request_id, spotify_track_name, spotify_artist_name")
+          .in("id", ratedAnswerIds);
+        (ratedAnswers ?? []).forEach((row: any) => {
+          ratedAnswerMap[row.id as string] = {
+            request_id: row.request_id,
+            trackName: row.spotify_track_name ?? "Unknown track",
+            artistName: row.spotify_artist_name ?? "Unknown artist",
+          };
+        });
+      }
+
+      const mergedRows: Item[] = [];
+      (answerRows ?? []).forEach((row: any) => {
+        mergedRows.push({
+          request_id: row.request_id,
+          created_at: row.created_at,
+          prompt: "",
+          trackName: row.spotify_track_name ?? "Unknown track",
+          artistName: row.spotify_artist_name ?? "Unknown artist",
+          mode: "answer",
+        });
+      });
+      (ratingRows ?? []).forEach((row: any) => {
+        const rated = ratedAnswerMap[row.answer_id];
+        if (!rated) return;
+        mergedRows.push({
+          request_id: rated.request_id,
+          created_at: row.created_at,
+          prompt: "",
+          trackName: rated.trackName,
+          artistName: rated.artistName,
+          mode: "nice_reco",
+        });
+      });
+
+      const reqIds = [...new Set(mergedRows.map((r) => r.request_id))];
       if (!reqIds.length) {
         setItems([]);
         setLoading(false);
@@ -52,16 +102,20 @@ export default function MyAnswersPage() {
       });
 
       const seen = new Set<string>();
-      const mapped: Item[] = (answerRows ?? [])
-        .filter((r: any) => {
-          if (seen.has(r.request_id)) return false;
-          seen.add(r.request_id);
+      const mapped: Item[] = mergedRows
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .filter((row) => {
+          if (seen.has(row.request_id)) return false;
+          seen.add(row.request_id);
           return true;
         })
-        .map((r: any) => ({
-          request_id: r.request_id,
-          created_at: r.created_at,
-          prompt: byId[r.request_id] ?? "",
+        .map((row) => ({
+          request_id: row.request_id,
+          created_at: row.created_at,
+          prompt: byId[row.request_id] ?? "",
+          trackName: row.trackName,
+          artistName: row.artistName,
+          mode: row.mode,
         }));
 
       setItems(mapped);
@@ -93,9 +147,18 @@ export default function MyAnswersPage() {
             ) : (
               <ul className="space-y-2">
                 {items.map((item) => (
-                  <li key={item.request_id} className="rounded-xl border border-border bg-accent/30 px-3 py-3">
-                    <div className="text-sm font-semibold">{item.prompt}</div>
-                    <div className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString()}</div>
+                  <li key={item.request_id}>
+                    <Link href={`/requests/${item.request_id}`} className="block">
+                      <Card className="cursor-pointer transition-colors hover:bg-accent/40">
+                        <CardContent className="py-3">
+                          <div className="text-[15px] font-semibold leading-relaxed tracking-tight">{item.prompt}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {item.mode === "answer" ? "My Reco" : "My Nice Reco"}: {item.trackName} - {item.artistName}
+                          </div>
+                          <div className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString()}</div>
+                        </CardContent>
+                      </Card>
+                    </Link>
                   </li>
                 ))}
               </ul>
