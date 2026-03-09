@@ -67,6 +67,8 @@ export default function RequestsPage() {
   const [publicBestRecos, setPublicBestRecos] = useState<PublicBestReco[]>([]);
   const [loadingPublicBestRecos, setLoadingPublicBestRecos] = useState(false);
   const [expandedPublicBestRecoId, setExpandedPublicBestRecoId] = useState<string | null>(null);
+  const [expandedCommentBestRecoId, setExpandedCommentBestRecoId] = useState<string | null>(null);
+  const COMMENT_PREVIEW_LEN = 80;
   const [myRequestFilter, setMyRequestFilter] = useState<"all" | "pending" | "selected">("all");
   const [status, setStatus] = useState("");
 
@@ -509,9 +511,20 @@ export default function RequestsPage() {
                               </p>
                             </div>
                             {item.comment ? (
-                              <div className="rounded-2xl border border-border bg-accent/40 px-3 py-2 text-sm">
-                                “{item.comment}”
+                              <>
+                                <div className="rounded-lg border border-border/70 bg-background/50 px-3 py-2 text-sm text-foreground/90">
+                                “{expandedCommentBestRecoId === item.id || (item.comment?.length ?? 0) <= COMMENT_PREVIEW_LEN ? item.comment : `${item.comment.slice(0, COMMENT_PREVIEW_LEN)}…`}”
                               </div>
+                                {(item.comment?.length ?? 0) > COMMENT_PREVIEW_LEN ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedCommentBestRecoId(expandedCommentBestRecoId === item.id ? null : item.id)}
+                                    className="ml-1.5 mt-1 text-xs text-primary hover:underline min-h-[44px] sm:min-h-0"
+                                  >
+                                    {expandedCommentBestRecoId === item.id ? "Collapse" : "Expand"}
+                                  </button>
+                                ) : null}
+                              </>
                             ) : null}
                             {item.trackId ? (
                               <Button

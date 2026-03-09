@@ -952,7 +952,7 @@ export default function ChallengePage() {
                       >
                         <Card className={s.isMine ? "border-primary/60 bg-primary/5" : "bg-muted/40 border-border/80"}>
                           <CardContent className="p-4 space-y-3">
-                            <div className="flex items-start gap-3">
+                            <div className="flex flex-wrap items-start gap-3">
                               <div className="shrink-0 flex flex-col">
                                 <div className="h-14 w-14 overflow-hidden rounded-2xl border border-border bg-card">
                                   {s.albumImage ? (
@@ -960,12 +960,12 @@ export default function ChallengePage() {
                                     <img src={s.albumImage} alt={s.trackName} className="h-full w-full object-cover" />
                                   ) : null}
                                 </div>
-                                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                                  <Badge variant="secondary">{s.voteCount} votes</Badge>
+                                <div className="mt-1.5 flex flex-col gap-0.5 text-xs">
+                                  <Badge variant="secondary" className="w-fit">{s.voteCount} votes</Badge>
                                   {s.submitterNickname || s.submitterUsername ? (
                                     <Link
                                       href={`/u/${encodeURIComponent((s.submitterNickname ?? s.submitterUsername ?? "user") as string)}`}
-                                      className="text-primary hover:underline"
+                                      className="text-primary hover:underline w-fit"
                                     >
                                       by {getDisplayName(s.submitterNickname, s.submitterUsername)}
                                     </Link>
@@ -979,27 +979,9 @@ export default function ChallengePage() {
                                   <div className="truncate text-sm font-semibold">{s.trackName}</div>
                                   {s.isMine ? <Badge variant="secondary">Yours</Badge> : null}
                                 </div>
-                                  <div className="truncate text-xs text-muted-foreground">{s.artistName}</div>
-                                  {s.comment ? (
-                                    <div className="mt-2 rounded-lg border border-border/70 bg-background/50 px-3 py-2 text-sm text-foreground/90">
-                                    <span className="break-words">
-                                      {expandedCommentId === s.id || (s.comment?.length ?? 0) <= COMMENT_PREVIEW_LEN
-                                        ? s.comment
-                                        : `${s.comment.slice(0, COMMENT_PREVIEW_LEN)}?`}
-                                    </span>
-                                    {(s.comment?.length ?? 0) > COMMENT_PREVIEW_LEN ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => setExpandedCommentId(expandedCommentId === s.id ? null : s.id)}
-                                        className="ml-1.5 text-xs text-primary hover:underline"
-                                      >
-                                        {expandedCommentId === s.id ? "Collapse" : "Expand"}
-                                      </button>
-                                    ) : null}
-                                  </div>
-                                  ) : null}
+                                <div className="truncate text-xs text-muted-foreground">{s.artistName}</div>
                               </div>
-                              <div className="flex shrink-0 flex-col gap-2">
+                              <div className="flex shrink-0 flex-col gap-2 [&_button]:min-h-[44px]">
                                 <motion.div
                                   whileTap={{ scale: 0.98 }}
                                   animate={s.viewerVoted ? { scale: 1.02 } : { scale: 1 }}
@@ -1048,6 +1030,24 @@ export default function ChallengePage() {
                                   </motion.div>
                                 ) : null}
                               </AnimatePresence>
+                              {s.comment ? (
+                                <div className="mt-3 rounded-lg border border-border/70 bg-background/50 px-3 py-2 text-sm text-foreground/90">
+                                  <span className="break-words">
+                                    {expandedCommentId === s.id || (s.comment?.length ?? 0) <= COMMENT_PREVIEW_LEN
+                                      ? s.comment
+                                      : `${s.comment.slice(0, COMMENT_PREVIEW_LEN)}?`}
+                                  </span>
+                                  {(s.comment?.length ?? 0) > COMMENT_PREVIEW_LEN ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedCommentId(expandedCommentId === s.id ? null : s.id)}
+                                      className="ml-1.5 text-xs text-primary hover:underline min-h-[44px] sm:min-h-0"
+                                    >
+                                      {expandedCommentId === s.id ? "Collapse" : "Expand"}
+                                    </button>
+                                  ) : null}
+                                </div>
+                              ) : null}
                             </CardContent>
                         </Card>
                       </motion.li>

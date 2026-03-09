@@ -75,6 +75,8 @@ export default function RequestDetailPage() {
   const [comment, setComment] = useState("");
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [expandedPlayAnswerId, setExpandedPlayAnswerId] = useState<string | null>(null);
+  const [expandedCommentAnswerId, setExpandedCommentAnswerId] = useState<string | null>(null);
+  const COMMENT_PREVIEW_LEN = 80;
 
   const loadAll = useCallback(async () => {
     if (!requestId) return;
@@ -655,7 +657,16 @@ export default function RequestDetailPage() {
                               <div className="truncate text-xs text-muted-foreground">{ans.artistName}</div>
                               <div className="text-xs text-muted-foreground">by @{ans.responderName}</div>
                               {ans.comment ? (
-                                <div className="text-sm text-foreground/90">“{ans.comment}”</div>
+                                <div className="rounded-lg border border-border/70 bg-background/50 px-3 py-2 text-sm text-foreground/90">“{expandedCommentAnswerId === ans.id || (ans.comment?.length ?? 0) <= COMMENT_PREVIEW_LEN ? ans.comment : `${ans.comment.slice(0, COMMENT_PREVIEW_LEN)}…`}”</div>
+                              ) : null}
+                              {(ans.comment?.length ?? 0) > COMMENT_PREVIEW_LEN ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedCommentAnswerId(expandedCommentAnswerId === ans.id ? null : ans.id)}
+                                  className="mt-1 text-xs text-primary hover:underline min-h-[44px] sm:min-h-0"
+                                >
+                                  {expandedCommentAnswerId === ans.id ? "Collapse" : "Expand"}
+                                </button>
                               ) : null}
                               {expandedPlayAnswerId === ans.id && ans.trackId ? (
                                 <iframe
