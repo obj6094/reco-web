@@ -974,7 +974,7 @@ export default function ChallengePage() {
                                   )}
                                 </div>
                               </div>
-                              <div className="min-w-0">
+                              <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <div className="truncate text-sm font-semibold">{s.trackName}</div>
                                   {s.isMine ? <Badge variant="secondary">Yours</Badge> : null}
