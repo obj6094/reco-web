@@ -974,14 +974,14 @@ export default function ChallengePage() {
                                   )}
                                 </div>
                               </div>
-                              <div className="min-w-0 flex-1">
+                              <div className="min-w-0 shrink-0">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <div className="truncate text-sm font-semibold">{s.trackName}</div>
+                                  <div className="truncate text-sm font-semibold max-w-[180px] sm:max-w-none">{s.trackName}</div>
                                   {s.isMine ? <Badge variant="secondary">Yours</Badge> : null}
                                 </div>
-                                <div className="truncate text-xs text-muted-foreground">{s.artistName}</div>
+                                <div className="truncate text-xs text-muted-foreground max-w-[180px] sm:max-w-none">{s.artistName}</div>
                               </div>
-                              <div className="flex shrink-0 flex-col gap-2 [&_button]:min-h-[44px]">
+                              <div className="ml-auto flex shrink-0 flex-col gap-2 [&_button]:min-h-[44px]">
                                 <motion.div
                                   whileTap={{ scale: 0.98 }}
                                   animate={s.viewerVoted ? { scale: 1.02 } : { scale: 1 }}
