@@ -30,6 +30,8 @@ type PublicAnswer = {
   request_id: string;
   trackName: string;
   artistName: string;
+  comment: string | null;
+  requestPrompt: string;
   created_at: string;
 };
 
@@ -62,13 +64,25 @@ export default function PublicProfilePage() {
       setLoading(true);
       setStatus("");
 
-      const { data: profile, error } = await supabase
+      const slug = decodeURIComponent(usernameParam).trim();
+      let profile: { id: string; username: string | null; nickname: string | null } | null = null;
+      const { data: byNickname, error: errNick } = await supabase
         .from("profiles")
         .select("id, username, nickname")
-        .eq("username", usernameParam)
+        .eq("nickname", slug)
         .maybeSingle();
+      if (!errNick && byNickname) {
+        profile = byNickname;
+      } else {
+        const { data: byUsername, error: errUser } = await supabase
+          .from("profiles")
+          .select("id, username, nickname")
+          .eq("username", slug)
+          .maybeSingle();
+        if (!errUser && byUsername) profile = byUsername;
+      }
 
-      if (error || !profile) {
+      if (!profile) {
         setNotFound(true);
         setLoading(false);
         return;
@@ -106,7 +120,7 @@ export default function PublicProfilePage() {
       // Load QnA answers for this user
       const { data: ansRows, error: ansError } = await supabase
         .from("qna_answers")
-        .select("id, request_id, spotify_track_name, spotify_artist_name, created_at")
+        .select("id, request_id, spotify_track_name, spotify_artist_name, comment, created_at")
         .eq("responder_id", uid)
         .order("created_at", { ascending: false })
         .limit(5);
@@ -115,12 +129,26 @@ export default function PublicProfilePage() {
         setStatus("Failed to load QnA answers: " + ansError.message);
       }
 
+      const requestIds = [...new Set((ansRows ?? []).map((r: any) => r.request_id).filter(Boolean))];
+      const promptByRequestId: Record<string, string> = {};
+      if (requestIds.length) {
+        const { data: reqRows } = await supabase
+          .from("qna_requests")
+          .select("id, prompt")
+          .in("id", requestIds);
+        (reqRows ?? []).forEach((r: any) => {
+          promptByRequestId[r.id as string] = (r.prompt as string) ?? "";
+        });
+      }
+
       const mappedAns: PublicAnswer[] =
         ansRows?.map((row: any) => ({
           id: row.id,
           request_id: row.request_id,
           trackName: row.spotify_track_name,
           artistName: row.spotify_artist_name,
+          comment: row.comment ?? null,
+          requestPrompt: promptByRequestId[row.request_id as string] ?? "",
           created_at: row.created_at,
         })) ?? [];
 
@@ -223,7 +251,7 @@ export default function PublicProfilePage() {
               <User className="h-5 w-5 text-primary" />
               <span>{nickname || "user"}</span>
             </CardTitle>
-            <CardDescription>@{nickname || "user"}</CardDescription>
+            <CardDescription>Curator profile</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap items-end justify-between gap-4">
             <div className="space-y-1">
@@ -318,24 +346,25 @@ export default function PublicProfilePage() {
               ) : (
                 <div className="space-y-2">
                   {answers.map((a) => (
-                    <Card key={a.id}>
-                      <CardContent className="flex items-start justify-between gap-4 p-4">
-                        <div className="min-w-0 space-y-1">
-                          <div className="truncate text-sm font-semibold">
-                            {a.trackName}
-                          </div>
-                          <div className="truncate text-xs text-muted-foreground">
-                            {a.artistName}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {new Date(a.created_at).toLocaleString()}
+                    <Card key={a.id} className="bg-muted/30 border-border/80">
+                      <CardContent className="p-4 space-y-2">
+                        <div className="text-sm font-medium text-foreground/90 break-words">
+                          {a.requestPrompt}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold">{a.trackName}</div>
+                            <div className="truncate text-xs text-muted-foreground">{a.artistName}</div>
                           </div>
                         </div>
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href={`/requests/${a.request_id}`}>
-                            View request <ArrowRight className="ml-2 h-4 w-4" />
-                          </Link>
-                        </Button>
+                        {a.comment ? (
+                          <div className="text-sm text-muted-foreground rounded-lg bg-background/60 px-3 py-2 border border-border/60">
+                            &quot;{a.comment}&quot;
+                          </div>
+                        ) : null}
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(a.created_at).toLocaleString()}
+                        </div>
                       </CardContent>
                     </Card>
                   ))}

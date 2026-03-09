@@ -1,4 +1,4 @@
-export const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
+export const USERNAME_PATTERN = /^[a-z0-9_]{3,20}$/;
 export const PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
 export function isValidUsername(value: string): boolean {

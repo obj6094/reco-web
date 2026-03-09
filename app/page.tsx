@@ -40,6 +40,8 @@ type BestRecoFromRequest = {
   created_at: string;
   requesterName: string;
   responderName: string;
+  requesterSlug: string;
+  responderSlug: string;
   comment: string | null;
   trackId: string | null;
   trackName: string;
@@ -351,7 +353,7 @@ export default function HomePage() {
         .select("id, prompt, best_answer_id, created_at, requester_id")
         .not("best_answer_id", "is", null)
         .order("created_at", { ascending: false })
-        .limit(10);
+        .limit(4);
 
       if (reqError) {
         setLoadingBestFromRequests(false);
@@ -411,18 +413,16 @@ export default function HomePage() {
         reqs?.map((r: any) => {
           const a = answerById[r.best_answer_id as string];
           if (!a) return null;
+          const reqProfile = profileMap[r.requester_id as string];
+          const resProfile = profileMap[a.responder_id as string];
           return {
             id: r.id as string,
             prompt: r.prompt as string,
             created_at: r.created_at as string,
-            requesterName: getDisplayName(
-              profileMap[r.requester_id as string]?.nickname,
-              profileMap[r.requester_id as string]?.username
-            ),
-            responderName: getDisplayName(
-              profileMap[a.responder_id as string]?.nickname,
-              profileMap[a.responder_id as string]?.username
-            ),
+            requesterName: getDisplayName(reqProfile?.nickname, reqProfile?.username),
+            responderName: getDisplayName(resProfile?.nickname, resProfile?.username),
+            requesterSlug: (reqProfile?.nickname ?? reqProfile?.username ?? "user").trim(),
+            responderSlug: (resProfile?.nickname ?? resProfile?.username ?? "user").trim(),
             comment: (a.comment as string | null) ?? null,
             trackId: (a.spotify_track_id as string | null) ?? null,
             trackName: (a.spotify_track_name as string) ?? "Unknown track",
@@ -665,7 +665,7 @@ export default function HomePage() {
                       {topCurators.map((c, index) => (
                         <Link
                           key={c.userId}
-                          href={c.username ? `/u/${c.username}` : "#"}
+                          href={(c.nickname ?? c.username) ? `/u/${encodeURIComponent((c.nickname ?? c.username) as string)}` : "#"}
                           className="flex min-h-[48px] items-center justify-between gap-3 rounded-2xl border border-border bg-accent/40 px-3 py-3 text-sm transition-colors hover:bg-accent/60 active:bg-accent/70"
                         >
                           <div className="flex items-center gap-3 min-w-0">
@@ -779,12 +779,18 @@ export default function HomePage() {
                             <div className="truncate text-xs text-muted-foreground">{item.artistName}</div>
                           </div>
                         </div>
-                        <div className="space-y-1 rounded-xl border border-border/70 bg-background/50 px-3 py-2 text-xs text-muted-foreground">
+                        <div className="space-y-1 rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                           <p>
-                            Request by <span className="font-medium text-foreground/90">@{item.requesterName}</span>
+                            Request by{" "}
+                            <Link href={`/u/${encodeURIComponent(item.requesterSlug)}`} className="font-medium text-primary hover:underline">
+                              @{item.requesterName}
+                            </Link>
                           </p>
                           <p>
-                            Best Reco by <span className="font-medium text-foreground/90">@{item.responderName}</span>
+                            Best Reco by{" "}
+                            <Link href={`/u/${encodeURIComponent(item.responderSlug)}`} className="font-medium text-primary hover:underline">
+                              @{item.responderName}
+                            </Link>
                           </p>
                         </div>
                         {item.comment ? (

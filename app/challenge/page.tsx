@@ -77,9 +77,11 @@ export default function ChallengePage() {
   const [votingOnId, setVotingOnId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"votes" | "recent">("votes");
   const [expandedPlayId, setExpandedPlayId] = useState<string | null>(null);
+  const [expandedCommentId, setExpandedCommentId] = useState<string | null>(null);
   const [pastChallenges, setPastChallenges] = useState<PastChallengeItem[]>([]);
   const [expandedPastId, setExpandedPastId] = useState<string | null>(null);
   const [loadingPast, setLoadingPast] = useState(false);
+  const COMMENT_PREVIEW_LEN = 80;
 
   const embedUrl = useMemo(() => {
     if (!selected) return null;
@@ -766,14 +768,56 @@ export default function ChallengePage() {
                   ) : (
                     <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       {previewSubmissions.map((s) => (
-                        <li key={s.id} className="rounded-xl border border-border bg-accent/30 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
+                        <li key={s.id} className="rounded-xl border border-border bg-muted/30 p-3">
+                          <div className="flex items-start gap-3">
+                            <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl border border-border bg-card">
+                              {s.albumImage ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={s.albumImage} alt={s.trackName} className="h-full w-full object-cover" />
+                              ) : null}
+                            </div>
+                            <div className="min-w-0 flex-1">
                               <div className="truncate text-sm font-semibold">{s.trackName}</div>
                               <div className="truncate text-xs text-muted-foreground">{s.artistName}</div>
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <Badge variant="secondary">{s.voteCount} votes</Badge>
+                                {s.submitterNickname || s.submitterUsername ? (
+                                  <Link
+                                    href={`/u/${encodeURIComponent((s.submitterNickname ?? s.submitterUsername ?? "user") as string)}`}
+                                    className="text-xs text-primary hover:underline"
+                                  >
+                                    by {getDisplayName(s.submitterNickname, s.submitterUsername)}
+                                  </Link>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">by user</span>
+                                )}
+                              </div>
                             </div>
-                            <Badge variant="secondary">{s.voteCount} votes</Badge>
+                            {s.spotify_track_id ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="shrink-0"
+                                onClick={() => setExpandedPlayId(expandedPlayId === s.id ? null : s.id)}
+                              >
+                                <Play className="h-4 w-4" />
+                                {expandedPlayId === s.id ? "Hide" : "Play"}
+                              </Button>
+                            ) : null}
                           </div>
+                          {expandedPlayId === s.id && s.spotify_track_id ? (
+                            <div className="mt-3 overflow-hidden rounded-xl border border-border">
+                              <iframe
+                                className="w-full"
+                                src={`https://open.spotify.com/embed/track/${s.spotify_track_id}`}
+                                width="100%"
+                                height="152"
+                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                                loading="lazy"
+                                title={`Play ${s.trackName}`}
+                              />
+                            </div>
+                          ) : null}
                         </li>
                       ))}
                     </ul>
@@ -832,11 +876,10 @@ export default function ChallengePage() {
 
             <Card id="submissions">
               <CardHeader>
-                <div className="flex items-center justify-between gap-3">
-                  <CardTitle>Submissions</CardTitle>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Sort:</span>
-                    <div className="flex h-9 items-center rounded-xl border border-border bg-muted/40 p-1">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  <CardTitle className="w-full sm:w-auto">Submissions</CardTitle>
+                  <span className="text-sm text-muted-foreground shrink-0">Sort:</span>
+                  <div className="flex h-9 min-h-[44px] items-center rounded-xl border border-border bg-muted/40 p-1 shrink-0">
                       <button
                         type="button"
                         onClick={() => setSortBy("votes")}
@@ -877,11 +920,10 @@ export default function ChallengePage() {
                           Most Recent
                         </span>
                       </button>
-                    </div>
-                    <Badge variant="secondary">
-                      {loadingSubmissions ? "…" : `${submissions.length} entries`}
-                    </Badge>
                   </div>
+                  <Badge variant="secondary" className="shrink-0">
+                    {loadingSubmissions ? "…" : `${submissions.length} entries`}
+                  </Badge>
                 </div>
               </CardHeader>
               <CardContent>
@@ -908,10 +950,10 @@ export default function ChallengePage() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.18 }}
                       >
-                        <Card className={s.isMine ? "border-primary/60 bg-primary/5" : ""}>
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex min-w-0 items-start gap-4">
+                        <Card className={s.isMine ? "border-primary/60 bg-primary/5" : "bg-muted/30 border-border/80"}>
+                          <CardContent className="p-4 space-y-3">
+                            <div className="flex items-start gap-3">
+                              <div className="flex flex-col gap-1.5 shrink-0">
                                 <div className="h-14 w-14 overflow-hidden rounded-2xl border border-border bg-card">
                                   {s.albumImage ? (
                                     // eslint-disable-next-line @next/next/no-img-element
@@ -925,23 +967,19 @@ export default function ChallengePage() {
                                   </div>
                                   <div className="truncate text-xs text-muted-foreground">{s.artistName}</div>
                                   {s.comment ? (
-                                    <div className="mt-2 line-clamp-2 text-sm text-foreground/90">“{s.comment}”</div>
+                                    <div className="mt-2 text-sm text-foreground/90 break-words">“{s.comment}”</div>
                                   ) : null}
                                   <div className="mt-2 flex flex-wrap items-center gap-2">
                                     <Badge variant="secondary">{s.voteCount} votes</Badge>
-                                    {s.submitterUsername ? (
-                                      <Link href={`/u/${s.submitterUsername}`} className="text-xs text-primary hover:underline">
-                                        <span className="font-medium">
-                                          {getDisplayName(s.submitterNickname, s.submitterUsername)}
-                                        </span>
-                                        <span className="ml-1 text-muted-foreground">
-                                          @{getDisplayName(s.submitterNickname, s.submitterUsername)}
-                                        </span>
+                                    {s.submitterNickname || s.submitterUsername ? (
+                                      <Link
+                                        href={`/u/${encodeURIComponent((s.submitterNickname ?? s.submitterUsername ?? "user") as string)}`}
+                                        className="text-xs text-primary hover:underline"
+                                      >
+                                        by {getDisplayName(s.submitterNickname, s.submitterUsername)}
                                       </Link>
                                     ) : (
-                                      <span className="text-xs text-muted-foreground">
-                                        {getDisplayName(s.submitterNickname, s.submitterUsername)}
-                                      </span>
+                                      <span className="text-xs text-muted-foreground">by user</span>
                                     )}
                                   </div>
                                 </div>

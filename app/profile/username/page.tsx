@@ -58,7 +58,7 @@ export default function UsernamePage() {
     setMessage("");
 
     if (!isValidUsername(next)) {
-      setError("Username must be 3-20 characters (letters, numbers, underscore).");
+      setError("Username must be 3-20 characters (lowercase letters, numbers, underscore only).");
       return;
     }
 

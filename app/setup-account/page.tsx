@@ -65,7 +65,7 @@ export default function SetupAccountPage() {
     const normalizedUsername = username.trim();
 
     if (!isValidUsername(normalizedUsername)) {
-      nextErrors.username = "Username must be 3-20 characters (letters, numbers, underscore).";
+      nextErrors.username = "Username must be 3-20 characters (lowercase letters, numbers, underscore only).";
     }
     if (!isValidPassword(password)) {
       nextErrors.password = "Password must be at least 8 characters and include letters and numbers.";
@@ -191,7 +191,7 @@ export default function SetupAccountPage() {
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                   </button>
                 </div>
                 {errors.password ? <p className="text-sm text-destructive">{errors.password}</p> : null}
@@ -212,7 +212,7 @@ export default function SetupAccountPage() {
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                     aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                   >
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showConfirmPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                   </button>
                 </div>
                 {errors.confirmPassword ? (

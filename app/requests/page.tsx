@@ -45,6 +45,10 @@ type PublicBestReco = {
   artistName: string;
   albumImage: string | null;
   comment: string | null;
+  requesterName: string;
+  responderName: string;
+  requesterSlug: string;
+  responderSlug: string;
 };
 
 export default function RequestsPage() {
@@ -253,10 +257,10 @@ export default function RequestsPage() {
 
     const { data: reqs, error: reqError } = await supabase
       .from("qna_requests")
-      .select("id, prompt, best_answer_id, created_at")
+      .select("id, prompt, best_answer_id, created_at, requester_id")
       .not("best_answer_id", "is", null)
       .order("created_at", { ascending: false })
-      .limit(10);
+      .limit(4);
 
     if (reqError) {
       setPublicBestRecos([]);
@@ -276,7 +280,7 @@ export default function RequestsPage() {
 
     const { data: answers, error: ansError } = await supabase
       .from("qna_answers")
-      .select("id, spotify_track_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment")
+      .select("id, responder_id, spotify_track_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment")
       .in("id", answerIds);
 
     if (ansError) {
@@ -290,10 +294,32 @@ export default function RequestsPage() {
       answerById[a.id as string] = a;
     }
 
+    const profileIds = Array.from(
+      new Set(
+        (reqs ?? []).map((r: any) => r.requester_id as string).filter(Boolean).concat(
+          (answers ?? []).map((a: any) => a.responder_id as string).filter(Boolean)
+        )
+      )
+    );
+    const profileMap: Record<string, { nickname: string | null; username: string | null }> = {};
+    if (profileIds.length) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, nickname, username")
+        .in("id", profileIds);
+      (profiles ?? []).forEach((p: any) => {
+        profileMap[p.id as string] = { nickname: p.nickname ?? null, username: p.username ?? null };
+      });
+    }
+    const getDisplayName = (nick: string | null, user: string | null) =>
+      (nick?.trim() || user?.trim() || "user");
+
     const merged: PublicBestReco[] =
       reqs?.map((r: any) => {
         const a = answerById[r.best_answer_id as string];
         if (!a) return null;
+        const reqProfile = profileMap[r.requester_id as string];
+        const resProfile = profileMap[a.responder_id as string];
         return {
           id: r.id as string,
           prompt: r.prompt as string,
@@ -303,6 +329,10 @@ export default function RequestsPage() {
           artistName: a.spotify_artist_name as string,
           albumImage: (a.spotify_album_image_url as string) ?? null,
           comment: (a.comment as string | null) ?? null,
+          requesterName: getDisplayName(reqProfile?.nickname, reqProfile?.username),
+          responderName: getDisplayName(resProfile?.nickname, resProfile?.username),
+          requesterSlug: (reqProfile?.nickname ?? reqProfile?.username ?? "user").trim(),
+          responderSlug: (resProfile?.nickname ?? resProfile?.username ?? "user").trim(),
         };
       }).filter(Boolean) as PublicBestReco[] ?? [];
 
@@ -370,7 +400,7 @@ export default function RequestsPage() {
     if (req.answersCount > 0) return { label: "Choose best", variant: "default" };
     return { label: "Awaiting answers", variant: "secondary" };
   }
-  const previewBestRecos = publicBestRecos.slice(0, 6);
+  const previewBestRecos = publicBestRecos;
   const filteredMyRequests = useMemo(() => {
     if (myRequestFilter === "selected") return myRequests.filter((r) => !!r.best_answer_id);
     if (myRequestFilter === "pending") return myRequests.filter((r) => !r.best_answer_id);
@@ -446,7 +476,7 @@ export default function RequestsPage() {
                         whileHover={{ scale: 1.01 }}
                         transition={{ duration: 0.15 }}
                       >
-                        <Card>
+                        <Card className="overflow-hidden border-border/80 bg-gradient-to-br from-card to-accent/20">
                           <CardHeader className="space-y-2">
                             <CardTitle className="line-clamp-2 text-sm">{item.prompt}</CardTitle>
                             <CardDescription>{new Date(item.created_at).toLocaleDateString()}</CardDescription>
@@ -463,6 +493,20 @@ export default function RequestsPage() {
                                 <div className="truncate text-sm font-semibold">{item.trackName}</div>
                                 <div className="truncate text-xs text-muted-foreground">{item.artistName}</div>
                               </div>
+                            </div>
+                            <div className="space-y-1 rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                              <p>
+                                Request by{" "}
+                                <Link href={`/u/${encodeURIComponent(item.requesterSlug)}`} className="font-medium text-primary hover:underline">
+                                  @{item.requesterName}
+                                </Link>
+                              </p>
+                              <p>
+                                Best Reco by{" "}
+                                <Link href={`/u/${encodeURIComponent(item.responderSlug)}`} className="font-medium text-primary hover:underline">
+                                  @{item.responderName}
+                                </Link>
+                              </p>
                             </div>
                             {item.comment ? (
                               <div className="rounded-2xl border border-border bg-accent/40 px-3 py-2 text-sm">
@@ -581,9 +625,9 @@ export default function RequestsPage() {
                           transition={{ duration: 0.15 }}
                           whileHover={{ scale: 1.01 }}
                           >
-                            <Card className="h-full cursor-pointer transition-colors hover:bg-accent/40">
+                            <Card className="h-full cursor-pointer transition-colors border-border/80 bg-muted/30 hover:bg-muted/50">
                             <CardHeader className="space-y-2">
-                              <CardTitle className="text-sm font-medium leading-snug line-clamp-2">
+                              <CardTitle className="text-sm font-medium leading-snug line-clamp-2 break-words">
                                 {req.prompt}
                               </CardTitle>
                               <CardDescription className="text-xs">
@@ -653,10 +697,10 @@ export default function RequestsPage() {
                       return (
                         <li key={req.id}>
                           <Link href={`/requests/${req.id}`} className="block">
-                            <Card className="cursor-pointer transition-colors hover:bg-accent/40">
+                            <Card className="cursor-pointer transition-colors border-border/80 bg-muted/30 hover:bg-muted/50">
                               <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
                                 <div className="min-w-0 flex-1">
-                                  <p className="font-semibold leading-relaxed tracking-tight">{req.prompt}</p>
+                                  <p className="font-semibold leading-relaxed tracking-tight break-words">{req.prompt}</p>
                                   <p className="mt-1 text-xs text-muted-foreground">
                                     {new Date(req.created_at).toLocaleString()} · {req.answersCount} answer(s)
                                   </p>
@@ -707,10 +751,10 @@ export default function RequestsPage() {
                     {previewMyAnswers.map((entry) => (
                       <li key={entry.request_id}>
                         <Link href={`/requests/${entry.request_id}`} className="block">
-                          <Card className="cursor-pointer transition-colors hover:bg-accent/40">
+                          <Card className="cursor-pointer transition-colors border-border/80 bg-muted/30 hover:bg-muted/50">
                             <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
                               <div className="min-w-0 flex-1">
-                                <p className="line-clamp-2 font-semibold leading-relaxed tracking-tight">{entry.prompt}</p>
+                                <p className="line-clamp-2 font-semibold leading-relaxed tracking-tight break-words">{entry.prompt}</p>
                                 <p className="mt-1 text-xs text-muted-foreground">
                                   {entry.mode === "answer" ? "My Reco" : "My Nice Reco"}: {entry.trackName} - {entry.artistName}
                                 </p>

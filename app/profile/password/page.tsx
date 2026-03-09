@@ -124,7 +124,7 @@ export default function PasswordPage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                   aria-label={showNewPassword ? "Hide password" : "Show password"}
                 >
-                  {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showNewPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                 </button>
               </div>
               <div className="relative">
@@ -142,7 +142,7 @@ export default function PasswordPage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                   aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                 >
-                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showConfirmPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                 </button>
               </div>
               <Button type="submit" className="w-full" disabled={saving}>

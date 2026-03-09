@@ -62,3 +62,10 @@ body {
   overflow-x: hidden;
   min-height: 100dvh;
 }
+
+/* Prevent mobile zoom on input focus (iOS) */
+@media (max-width: 768px) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+}
