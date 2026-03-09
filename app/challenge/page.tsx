@@ -218,8 +218,8 @@ export default function ChallengePage() {
     if (sortBy === "votes") return sortSubmissions(submissions);
     return [...submissions].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [submissions, sortBy]);
-  const previewSubmissions = sortedSubmissions.slice(0, 8);
-  const previewPastChallenges = pastChallenges.slice(0, 5);
+  const previewSubmissions = sortedSubmissions.slice(0, 4);
+  const previewPastChallenges = pastChallenges.slice(0, 4);
 
   function challengeDuration(startsAt: string | null): string {
     if (!startsAt) return "";
@@ -826,7 +826,7 @@ export default function ChallengePage() {
                 {submissions.length > previewSubmissions.length ? (
                   <div className="mt-4">
                     <Button variant="outline" asChild>
-                      <Link href="/challenge/submissions">View more</Link>
+                      <Link href="/challenge/submissions">View all</Link>
                     </Button>
                   </div>
                 ) : null}
@@ -960,7 +960,7 @@ export default function ChallengePage() {
                                     <img src={s.albumImage} alt={s.trackName} className="h-full w-full object-cover" />
                                   ) : null}
                                 </div>
-                                <div className="mt-1.5 flex flex-col gap-0.5 text-xs">
+                                <div className="mt-1.5 flex flex-row flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
                                   <Badge variant="secondary" className="w-fit">{s.voteCount} votes</Badge>
                                   {s.submitterNickname || s.submitterUsername ? (
                                     <Link
@@ -1058,7 +1058,7 @@ export default function ChallengePage() {
                 {submissions.length > previewSubmissions.length ? (
                   <div className="mt-4">
                     <Button variant="outline" asChild>
-                      <Link href="/challenge/submissions">View more</Link>
+                      <Link href="/challenge/submissions">View all</Link>
                     </Button>
                   </div>
                 ) : null}
@@ -1171,7 +1171,7 @@ export default function ChallengePage() {
             {pastChallenges.length > previewPastChallenges.length ? (
               <div className="mt-4">
                 <Button variant="outline" asChild>
-                  <Link href="/challenge/past">View more</Link>
+                  <Link href="/challenge/past">View all</Link>
                 </Button>
               </div>
             ) : null}

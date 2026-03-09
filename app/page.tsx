@@ -335,7 +335,7 @@ export default function HomePage() {
       });
 
       curators.sort((a, b) => b.score - a.score);
-      setTopCurators(curators.slice(0, 5));
+      setTopCurators(curators.slice(0, 3));
       setLoadingCurators(false);
     }
 
@@ -702,21 +702,30 @@ export default function HomePage() {
                 description="Past challenges will appear here soon."
               />
             ) : (
-              <div className="grid gap-2">
-                {past.slice(0, 8).map((ch) => (
-                  <div
-                    key={ch.id}
-                    className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-accent/30 px-4 py-3"
-                  >
-                    <div className="text-xs text-muted-foreground">
-                      {ch.week_start ? new Date(ch.week_start).toLocaleDateString() : "Past"}
+              <>
+                <div className="grid gap-2">
+                  {past.slice(0, 4).map((ch) => (
+                    <div
+                      key={ch.id}
+                      className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-accent/30 px-4 py-3"
+                    >
+                      <div className="text-xs text-muted-foreground">
+                        {ch.week_start ? new Date(ch.week_start).toLocaleDateString() : "Past"}
+                      </div>
+                      <div className="flex-1 truncate text-right text-sm">
+                        {ch.prompt}
+                      </div>
                     </div>
-                    <div className="flex-1 truncate text-right text-sm">
-                      {ch.prompt}
-                    </div>
+                  ))}
+                </div>
+                {past.length > 4 ? (
+                  <div className="mt-4">
+                    <Button variant="outline" asChild>
+                      <Link href="/challenge/past">View all</Link>
+                    </Button>
                   </div>
-                ))}
-              </div>
+                ) : null}
+              </>
             )}
           </CardContent>
         </Card>

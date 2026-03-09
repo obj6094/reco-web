@@ -408,8 +408,8 @@ export default function RequestsPage() {
     if (myRequestFilter === "pending") return myRequests.filter((r) => !r.best_answer_id);
     return myRequests;
   }, [myRequests, myRequestFilter]);
-  const previewMyRequests = filteredMyRequests.slice(0, 5);
-  const previewMyAnswers = myAnswers.slice(0, 5);
+  const previewMyRequests = filteredMyRequests.slice(0, 4);
+  const previewMyAnswers = myAnswers.slice(0, 4);
 
   return (
     <main className="min-h-[calc(100dvh-120px)] bg-background px-3 py-6 text-foreground sm:px-4 sm:py-8 md:py-10">
@@ -732,7 +732,7 @@ export default function RequestsPage() {
                 {filteredMyRequests.length > previewMyRequests.length ? (
                   <div className="mt-4">
                     <Button variant="outline" asChild>
-                      <Link href="/requests/my-requests">View more</Link>
+                      <Link href="/requests/my-requests">View all</Link>
                     </Button>
                   </div>
                 ) : null}
@@ -782,7 +782,7 @@ export default function RequestsPage() {
                 {myAnswers.length > previewMyAnswers.length ? (
                   <div className="mt-4">
                     <Button variant="outline" asChild>
-                      <Link href="/requests/my-answers">View more</Link>
+                      <Link href="/requests/my-answers">View all</Link>
                     </Button>
                   </div>
                 ) : null}
