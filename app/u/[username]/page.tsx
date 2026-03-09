@@ -15,7 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
-import { ArrowLeft, ArrowRight, MessageCircle, Star, Trophy, User } from "lucide-react";
+import { ArrowLeft, ArrowRight, MessageCircle, Play, Star, Trophy, User } from "lucide-react";
 
 type PublicSubmission = {
   id: string;
@@ -33,6 +33,8 @@ type PublicAnswer = {
   comment: string | null;
   requestPrompt: string;
   created_at: string;
+  albumImage: string | null;
+  spotify_track_id: string | null;
 };
 
 export default function PublicProfilePage() {
@@ -51,6 +53,7 @@ export default function PublicProfilePage() {
 
   const [submissions, setSubmissions] = useState<PublicSubmission[]>([]);
   const [answers, setAnswers] = useState<PublicAnswer[]>([]);
+  const [expandedPlayAnswerId, setExpandedPlayAnswerId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
 
   useEffect(() => {
@@ -120,7 +123,7 @@ export default function PublicProfilePage() {
       // Load QnA answers for this user
       const { data: ansRows, error: ansError } = await supabase
         .from("qna_answers")
-        .select("id, request_id, spotify_track_name, spotify_artist_name, comment, created_at")
+        .select("id, request_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, spotify_track_id, comment, created_at")
         .eq("responder_id", uid)
         .order("created_at", { ascending: false })
         .limit(5);
@@ -150,6 +153,8 @@ export default function PublicProfilePage() {
           comment: row.comment ?? null,
           requestPrompt: promptByRequestId[row.request_id as string] ?? "",
           created_at: row.created_at,
+          albumImage: row.spotify_album_image_url ?? null,
+          spotify_track_id: row.spotify_track_id ?? null,
         })) ?? [];
 
       setAnswers(mappedAns);
@@ -346,20 +351,50 @@ export default function PublicProfilePage() {
               ) : (
                 <div className="space-y-2">
                   {answers.map((a) => (
-                    <Card key={a.id} className="bg-muted/30 border-border/80">
-                      <CardContent className="p-4 space-y-2">
+                    <Card key={a.id} className="bg-muted/40 border-border/80">
+                      <CardContent className="p-4 space-y-3">
                         <div className="text-sm font-medium text-foreground/90 break-words">
                           {a.requestPrompt}
                         </div>
-                        <div className="flex items-center gap-3">
-                          <div className="min-w-0">
+                        <div className="flex items-start gap-3">
+                          <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-xl border border-border bg-card">
+                            {a.albumImage ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={a.albumImage} alt={a.trackName} className="h-full w-full object-cover" />
+                            ) : null}
+                          </div>
+                          <div className="min-w-0 flex-1">
                             <div className="truncate text-sm font-semibold">{a.trackName}</div>
                             <div className="truncate text-xs text-muted-foreground">{a.artistName}</div>
                           </div>
+                          {a.spotify_track_id ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="shrink-0"
+                              onClick={() => setExpandedPlayAnswerId(expandedPlayAnswerId === a.id ? null : a.id)}
+                            >
+                              <Play className="h-4 w-4" />
+                              {expandedPlayAnswerId === a.id ? "Hide" : "Play"}
+                            </Button>
+                          ) : null}
                         </div>
+                        {expandedPlayAnswerId === a.id && a.spotify_track_id ? (
+                          <div className="overflow-hidden rounded-xl border border-border">
+                            <iframe
+                              className="w-full"
+                              src={`https://open.spotify.com/embed/track/${a.spotify_track_id}`}
+                              width="100%"
+                              height="152"
+                              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                              loading="lazy"
+                              title={`Play ${a.trackName}`}
+                            />
+                          </div>
+                        ) : null}
                         {a.comment ? (
                           <div className="text-sm text-muted-foreground rounded-lg bg-background/60 px-3 py-2 border border-border/60">
-                            &quot;{a.comment}&quot;
+                            {a.comment}
                           </div>
                         ) : null}
                         <div className="text-xs text-muted-foreground">

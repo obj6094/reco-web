@@ -625,7 +625,7 @@ export default function RequestsPage() {
                           transition={{ duration: 0.15 }}
                           whileHover={{ scale: 1.01 }}
                           >
-                            <Card className="h-full cursor-pointer transition-colors border-border/80 bg-muted/30 hover:bg-muted/50">
+                            <Card className="h-full cursor-pointer transition-colors border-border/80 bg-muted/40 hover:bg-muted/60">
                             <CardHeader className="space-y-2">
                               <CardTitle className="text-sm font-medium leading-snug line-clamp-2 break-words">
                                 {req.prompt}
@@ -697,7 +697,7 @@ export default function RequestsPage() {
                       return (
                         <li key={req.id}>
                           <Link href={`/requests/${req.id}`} className="block">
-                            <Card className="cursor-pointer transition-colors border-border/80 bg-muted/30 hover:bg-muted/50">
+                            <Card className="cursor-pointer transition-colors border-border/80 bg-muted/40 hover:bg-muted/60">
                               <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
                                 <div className="min-w-0 flex-1">
                                   <p className="font-semibold leading-relaxed tracking-tight break-words">{req.prompt}</p>
@@ -751,7 +751,7 @@ export default function RequestsPage() {
                     {previewMyAnswers.map((entry) => (
                       <li key={entry.request_id}>
                         <Link href={`/requests/${entry.request_id}`} className="block">
-                          <Card className="cursor-pointer transition-colors border-border/80 bg-muted/30 hover:bg-muted/50">
+                          <Card className="cursor-pointer transition-colors border-border/80 bg-muted/40 hover:bg-muted/60">
                             <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
                               <div className="min-w-0 flex-1">
                                 <p className="line-clamp-2 font-semibold leading-relaxed tracking-tight break-words">{entry.prompt}</p>

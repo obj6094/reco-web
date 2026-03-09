@@ -56,20 +56,20 @@ export default function ChallengePage() {
   const router = useRouter();
   const [challenge, setChallenge] = useState<any>(null);
 
-  // 인증 상태
+  // ??? ???
   const [userId, setUserId] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // 검색
+  // ???
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [selected, setSelected] = useState<Track | null>(null);
 
-  // 제출 코멘트
+  // ??? ????
   const [comment, setComment] = useState("");
 
-  // 제출 / 투표 상태
+  // ??? / ??? ???
   const [status, setStatus] = useState("");
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
@@ -90,12 +90,12 @@ export default function ChallengePage() {
 
   useEffect(() => {
     async function boot() {
-      // 로그인 유저 가져오기 (세션 체크)
+      // ???????? ??????(??? ??)
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id ?? null;
       setUserId(uid);
 
-      // 보호된 페이지: 로그인 안 했으면 /login 으로 리다이렉트
+      // ????????: ???????????/login ??? ???????
       if (!uid) {
         setAuthChecked(true);
       }
@@ -113,7 +113,7 @@ export default function ChallengePage() {
         }
       }
 
-      // 최신 챌린지 가져오기
+      // ?? ??? ??????
       const { data, error } = await supabase
         .from("weekly_challenges")
         .select("*")
@@ -140,8 +140,8 @@ export default function ChallengePage() {
       setLoadingSubmissions(true);
       setStatus("");
 
-      // 현재 챌린지의 모든 제출 + 투표 정보 불러오기
-      // 각 제출(challenge_submissions) 행을 그대로 랭킹 단위로 사용 (동일 곡이어도 사람/제출마다 분리)
+      // ??? ??????? ??? + ??? ??? ?????
+      // ?????(challenge_submissions) ??? ????????? ???????? (??? ????? ???/????? ??)
       const { data, error } = await supabase
         .from("challenge_submissions")
         .select(
@@ -226,7 +226,7 @@ export default function ChallengePage() {
     const start = new Date(startsAt);
     const end = new Date(start);
     end.setDate(end.getDate() + 6);
-    return `${start.toLocaleDateString()} → ${end.toLocaleDateString()}`;
+    return `${start.toLocaleDateString()} ? ${end.toLocaleDateString()}`;
   }
 
   function challengeDday(startsAt: string | null): string {
@@ -333,7 +333,7 @@ export default function ChallengePage() {
     setSelected(null);
 
     try {
-      // Spotify 검색은 /api 라우트를 통해서만 호출 (env 값은 서버 라우트에서만 사용)
+      // Spotify ????? /api ??????? ?????? ??? (env ??? ??? ????????? ???)
       const res = await fetch(`/api/spotify/search?q=${encodeURIComponent(query)}`);
       const data = await res.json();
       setTracks(data.tracks ?? []);
@@ -353,7 +353,7 @@ export default function ChallengePage() {
       return;
     }
     if (mySubmission) {
-      // 서버에서도 unique 제약이 있으나, 클라이언트에서 한 번 더 막아줌
+      // ????????unique ?????????? ?????????????????????
       setStatus("You already submitted for this challenge. Changes are not allowed.");
       return;
     }
@@ -362,7 +362,7 @@ export default function ChallengePage() {
       return;
     }
 
-    // challenge_submissions 테이블에 저장 (Supabase env는 lib/supabaseClient.ts에서만 사용)
+    // challenge_submissions ????? ????(Supabase env??lib/supabaseClient.ts????????)
     const { error } = await supabase.from("challenge_submissions").insert({
       challenge_id: challenge.id,
       user_id: userId,
@@ -374,7 +374,7 @@ export default function ChallengePage() {
     });
 
     if (error) {
-      // unique(challenge_id, user_id) 때문에 1인 1곡 제한에 걸릴 수 있음
+      // unique(challenge_id, user_id) ?????1??1????????? ?????
       setStatus("Submit failed: " + error.message);
       return;
     }
@@ -383,7 +383,7 @@ export default function ChallengePage() {
     setComment("");
     setSelected(null);
 
-    // 내 제출/목록 새로고침
+    // ?????/?? ?????
     if (challenge) {
       const { data: reloadData, error: reloadError } = await supabase
         .from("challenge_submissions")
@@ -436,7 +436,7 @@ export default function ChallengePage() {
     setStatus("");
 
     if (!userId) {
-      // 보호된 페이지지만, 안전장치로 한 번 더 처리
+      // ??????????? ????????????????
       router.replace("/login");
       return;
     }
@@ -448,7 +448,7 @@ export default function ChallengePage() {
 
     setVotingOnId(submission.id);
 
-    // UI는 즉시 반영 (optimistic update)
+    // UI???? ?? (optimistic update)
     const before = submissions;
     const optimistic = sortSubmissions(
       submissions.map((s) => {
@@ -466,7 +466,7 @@ export default function ChallengePage() {
 
     try {
       if (submission.viewerVoted) {
-        // 이미 투표한 경우 -> 취소
+        // ???? ??????? -> ??
         const { error } = await supabase
           .from("challenge_votes")
           .delete()
@@ -474,13 +474,13 @@ export default function ChallengePage() {
           .eq("voter_id", userId);
 
         if (error) {
-          // 실패하면 원복
+          // ?????? ???
           setSubmissions(before);
           setMySubmission(before.find((s) => s.isMine) ?? null);
           setStatus("Failed to remove vote: " + error.message);
         }
       } else {
-        // 서버 측에서도 본인 제출인지 한 번 더 확인
+        // ??? ????? ?? ??????? ?????????
         const { data: ownerRow, error: ownerError } = await supabase
           .from("challenge_submissions")
           .select("user_id")
@@ -514,7 +514,7 @@ export default function ChallengePage() {
       }
     } finally {
       setVotingOnId(null);
-      // 투표 후 정합성 확보를 위해 목록/카운트 새로고침
+      // ??? ??????????????? ??/?????????
       if (challenge && userId) {
         const { data: refetchData, error } = await supabase
           .from("challenge_submissions")
@@ -568,7 +568,7 @@ export default function ChallengePage() {
           <Card>
             <CardHeader>
               <CardTitle>Challenge</CardTitle>
-              <CardDescription>Loading this week&apos;s challenge…</CardDescription>
+              <CardDescription>Loading this week&apos;s challenge?</CardDescription>
             </CardHeader>
           </Card>
         </div>
@@ -700,7 +700,7 @@ export default function ChallengePage() {
           <Card>
             <CardHeader>
               <CardTitle>Loading</CardTitle>
-              <CardDescription>Checking your session…</CardDescription>
+              <CardDescription>Checking your session?</CardDescription>
             </CardHeader>
           </Card>
         ) : !userId ? (
@@ -768,7 +768,7 @@ export default function ChallengePage() {
                   ) : (
                     <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       {previewSubmissions.map((s) => (
-                        <li key={s.id} className="rounded-xl border border-border bg-muted/30 p-3">
+                        <li key={s.id} className="rounded-xl border border-border bg-muted/40 p-3">
                           <div className="flex items-start gap-3">
                             <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl border border-border bg-card">
                               {s.albumImage ? (
@@ -860,7 +860,7 @@ export default function ChallengePage() {
                         <div className="truncate text-sm text-muted-foreground">{mySubmission.artistName}</div>
                         {mySubmission.comment ? (
                           <div className="mt-2 rounded-2xl border border-border bg-accent/40 px-3 py-2 text-sm">
-                            “{mySubmission.comment}”
+                            "{mySubmission.comment}"
                           </div>
                         ) : null}
                       </div>
@@ -922,13 +922,13 @@ export default function ChallengePage() {
                       </button>
                   </div>
                   <Badge variant="secondary" className="shrink-0">
-                    {loadingSubmissions ? "…" : `${submissions.length} entries`}
+                    {loadingSubmissions ? "?" : `${submissions.length} entries`}
                   </Badge>
                 </div>
               </CardHeader>
               <CardContent>
                 {loadingSubmissions && !submissions.length ? (
-                  <div className="text-sm text-muted-foreground">Loading submissions…</div>
+                  <div className="text-sm text-muted-foreground">Loading submissions?</div>
                 ) : submissions.length === 0 ? (
                   <EmptyState
                     icon={Music2}
@@ -950,42 +950,56 @@ export default function ChallengePage() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.18 }}
                       >
-                        <Card className={s.isMine ? "border-primary/60 bg-primary/5" : "bg-muted/30 border-border/80"}>
+                        <Card className={s.isMine ? "border-primary/60 bg-primary/5" : "bg-muted/40 border-border/80"}>
                           <CardContent className="p-4 space-y-3">
                             <div className="flex items-start gap-3">
-                              <div className="flex flex-col gap-1.5 shrink-0">
+                              <div className="shrink-0 flex flex-col">
                                 <div className="h-14 w-14 overflow-hidden rounded-2xl border border-border bg-card">
                                   {s.albumImage ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img src={s.albumImage} alt={s.trackName} className="h-full w-full object-cover" />
                                   ) : null}
                                 </div>
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <div className="truncate text-sm font-semibold">{s.trackName}</div>
-                                    {s.isMine ? <Badge variant="secondary">Yours</Badge> : null}
-                                  </div>
-                                  <div className="truncate text-xs text-muted-foreground">{s.artistName}</div>
-                                  {s.comment ? (
-                                    <div className="mt-2 text-sm text-foreground/90 break-words">“{s.comment}”</div>
-                                  ) : null}
-                                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                                    <Badge variant="secondary">{s.voteCount} votes</Badge>
-                                    {s.submitterNickname || s.submitterUsername ? (
-                                      <Link
-                                        href={`/u/${encodeURIComponent((s.submitterNickname ?? s.submitterUsername ?? "user") as string)}`}
-                                        className="text-xs text-primary hover:underline"
-                                      >
-                                        by {getDisplayName(s.submitterNickname, s.submitterUsername)}
-                                      </Link>
-                                    ) : (
-                                      <span className="text-xs text-muted-foreground">by user</span>
-                                    )}
-                                  </div>
+                                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                                  <Badge variant="secondary">{s.voteCount} votes</Badge>
+                                  {s.submitterNickname || s.submitterUsername ? (
+                                    <Link
+                                      href={`/u/${encodeURIComponent((s.submitterNickname ?? s.submitterUsername ?? "user") as string)}`}
+                                      className="text-primary hover:underline"
+                                    >
+                                      by {getDisplayName(s.submitterNickname, s.submitterUsername)}
+                                    </Link>
+                                  ) : (
+                                    <span className="text-muted-foreground">by user</span>
+                                  )}
                                 </div>
                               </div>
-
-                              <div className="flex shrink-0 flex-col items-end gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <div className="truncate text-sm font-semibold">{s.trackName}</div>
+                                  {s.isMine ? <Badge variant="secondary">Yours</Badge> : null}
+                                </div>
+                                  <div className="truncate text-xs text-muted-foreground">{s.artistName}</div>
+                                  {s.comment ? (
+                                    <div className="mt-2 rounded-lg border border-border/70 bg-background/50 px-3 py-2 text-sm text-foreground/90">
+                                    <span className="break-words">
+                                      {expandedCommentId === s.id || (s.comment?.length ?? 0) <= COMMENT_PREVIEW_LEN
+                                        ? s.comment
+                                        : `${s.comment.slice(0, COMMENT_PREVIEW_LEN)}?`}
+                                    </span>
+                                    {(s.comment?.length ?? 0) > COMMENT_PREVIEW_LEN ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedCommentId(expandedCommentId === s.id ? null : s.id)}
+                                        className="ml-1.5 text-xs text-primary hover:underline"
+                                      >
+                                        {expandedCommentId === s.id ? "Collapse" : "Expand"}
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                  ) : null}
+                              </div>
+                              <div className="flex shrink-0 flex-col gap-2">
                                 <motion.div
                                   whileTap={{ scale: 0.98 }}
                                   animate={s.viewerVoted ? { scale: 1.02 } : { scale: 1 }}
@@ -998,7 +1012,7 @@ export default function ChallengePage() {
                                     disabled={s.isMine || votingOnId === s.id}
                                   >
                                     <ThumbsUp className="h-4 w-4" />
-                                    {s.isMine ? "Mine" : votingOnId === s.id ? "…" : s.viewerVoted ? "Voted" : "Vote"}
+                                    {s.isMine ? "Mine" : votingOnId === s.id ? "?" : s.viewerVoted ? "Voted" : "Vote"}
                                   </Button>
                                 </motion.div>
                                 {s.spotify_track_id ? (
@@ -1070,7 +1084,7 @@ export default function ChallengePage() {
           </CardHeader>
           <CardContent>
             {loadingPast ? (
-              <div className="text-sm text-muted-foreground">Loading past challenges…</div>
+              <div className="text-sm text-muted-foreground">Loading past challenges?</div>
             ) : pastChallenges.length === 0 ? (
               <EmptyState
                 icon={Trophy}
@@ -1100,7 +1114,7 @@ export default function ChallengePage() {
                                     <img src={top.albumImage} alt="" className="h-8 w-8 rounded-md object-cover" />
                                   ) : null}
                                   <p className="min-w-0 truncate text-sm text-muted-foreground">
-                                    #1: {top.trackName} — {top.artistName}
+                                    #1: {top.trackName} ? {top.artistName}
                                   </p>
                                 </div>
                               ) : (
