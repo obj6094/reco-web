@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
 import { ExpandableText } from "@/components/ExpandableText";
+import { cn } from "@/lib/utils";
 import { ArrowLeft, ArrowRight, Crown, Lock, Play, Search, Sparkles, Tag, ThumbsUp } from "lucide-react";
 
 type RequestDetail = {
