@@ -385,7 +385,7 @@ export default function PublicProfilePage() {
                               className="w-full"
                               src={`https://open.spotify.com/embed/track/${a.spotify_track_id}`}
                               width="100%"
-                              height="152"
+                              height="80"
                               allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                               loading="lazy"
                               title={`Play ${a.trackName}`}

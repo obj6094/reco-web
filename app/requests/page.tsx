@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
+import { ExpandableText } from "@/components/ExpandableText";
 import { ArrowRight, MessageCirclePlus, Send, Inbox, CheckCircle, Music2, Play } from "lucide-react";
 
 type QueueRequest = {
@@ -511,20 +512,12 @@ export default function RequestsPage() {
                               </p>
                             </div>
                             {item.comment ? (
-                              <>
-                                <div className="rounded-lg border border-border/70 bg-background/50 px-3 py-2 text-sm text-foreground/90">
-                                “{expandedCommentBestRecoId === item.id || (item.comment?.length ?? 0) <= COMMENT_PREVIEW_LEN ? item.comment : `${item.comment.slice(0, COMMENT_PREVIEW_LEN)}…`}”
-                              </div>
-                                {(item.comment?.length ?? 0) > COMMENT_PREVIEW_LEN ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => setExpandedCommentBestRecoId(expandedCommentBestRecoId === item.id ? null : item.id)}
-                                    className="ml-1.5 mt-1 text-xs text-primary hover:underline min-h-[44px] sm:min-h-0"
-                                  >
-                                    {expandedCommentBestRecoId === item.id ? "Collapse" : "Expand"}
-                                  </button>
-                                ) : null}
-                              </>
+                              <ExpandableText
+                                text={item.comment}
+                                maxChars={160}
+                                variant="compact-card"
+                                toggleAriaLabel="Toggle best reco comment expansion"
+                              />
                             ) : null}
                             {item.trackId ? (
                               <Button
