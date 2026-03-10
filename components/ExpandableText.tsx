@@ -1,6 +1,6 @@
  "use client";
 
- import { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
  import { motion, AnimatePresence } from "framer-motion";
  import { cn } from "@/lib/utils";
 
@@ -11,6 +11,8 @@
    className?: string;
    /** Optional aria-label for the expand/collapse button */
    toggleAriaLabel?: string;
+  /** Visual density / layout preset */
+  variant?: "default" | "compact-card";
  };
 
  export function ExpandableText({
@@ -18,6 +20,7 @@
    maxChars = 140,
    className,
    toggleAriaLabel,
+  variant = "default",
  }: ExpandableTextProps) {
    const [expanded, setExpanded] = useState(false);
 
@@ -31,8 +34,16 @@
 
    if (!content) return null;
 
+  const isCompact = variant === "compact-card";
+
    return (
-     <div className={cn("space-y-1 text-sm text-foreground/90", className)}>
+    <div
+      className={cn(
+        "space-y-1 text-sm text-foreground/90",
+        isCompact && "space-y-0.5",
+        className,
+      )}
+    >
        <AnimatePresence initial={false}>
          <motion.p
            key={expanded ? "expanded" : "collapsed"}
@@ -41,7 +52,22 @@
            animate={{ opacity: 1, y: 0 }}
            exit={{ opacity: 0, y: -4 }}
            transition={{ duration: 0.18 }}
-           className="break-words"
+          className={cn(
+            "break-words",
+            isCompact &&
+              !expanded &&
+              // Mobile: keep very compact (2 lines), allow a bit more on larger screens
+              "text-xs text-muted-foreground line-clamp-2 sm:line-clamp-3",
+            isCompact && expanded && "text-xs text-muted-foreground",
+          )}
+          style={
+            isCompact
+              ? {
+                  wordBreak: "break-word",
+                  overflowWrap: "anywhere",
+                }
+              : undefined
+          }
          >
            {displayed}
          </motion.p>
@@ -50,7 +76,10 @@
          <button
            type="button"
            onClick={() => setExpanded((prev) => !prev)}
-           className="text-xs font-medium text-primary hover:underline"
+          className={cn(
+            "text-xs font-medium text-primary hover:underline",
+            isCompact && "text-[11px]",
+          )}
            aria-label={toggleAriaLabel}
          >
            {expanded ? "Collapse" : "Expand"}

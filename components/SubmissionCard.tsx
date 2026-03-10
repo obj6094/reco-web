@@ -111,17 +111,18 @@
                </div>
              </div>
 
-             <div className="min-w-0 flex-1 space-y-1">
+              <div className="min-w-0 flex-1 space-y-1">
                <div className="flex flex-wrap items-center gap-2">
                  <div className="truncate text-sm font-semibold">{trackName}</div>
                  {isMine ? <Badge variant="secondary">Yours</Badge> : null}
                </div>
                <div className="truncate text-xs text-muted-foreground">{artistName}</div>
                {comment ? (
-                 <div className="mt-2 rounded-lg border border-border/70 bg-background/50 px-3 py-2">
+                 <div className="mt-2 rounded-lg border border-border/70 bg-background/50 px-2 py-1.5 sm:px-3 sm:py-2">
                    <ExpandableText
                      text={comment}
-                     maxChars={140}
+                     maxChars={160}
+                     variant="compact-card"
                      toggleAriaLabel="Toggle comment expansion"
                    />
                  </div>

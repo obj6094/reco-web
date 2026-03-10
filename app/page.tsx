@@ -234,6 +234,20 @@ export default function HomePage() {
     return `${start.toLocaleDateString()} → ${end.toLocaleDateString()}`;
   }, [current]);
 
+  const currentDday = useMemo(() => {
+    if (!current?.starts_at) return null;
+    const start = new Date(current.starts_at);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    const now = new Date();
+    const diffMs = end.getTime() - now.getTime();
+    const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    if (days < 0) return "Closed";
+    if (days === 0) return "D-Day";
+    return `D-${days}`;
+  }, [current]);
+
   useEffect(() => {
     async function loadTopCurators() {
       setLoadingCurators(true);
@@ -554,15 +568,20 @@ export default function HomePage() {
             <motion.div whileHover={{ scale: 1.01 }} transition={{ duration: 0.15 }} className="lg:col-span-2">
               <Card className="h-full">
                 <CardHeader className="space-y-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <CardTitle className="flex items-center gap-2">
-                      <Trophy className="h-4 w-4 text-primary" />
-                      {currentTitle}
-                    </CardTitle>
-                    {currentRange ? (
-                      <span className="text-xs text-muted-foreground">{currentRange}</span>
-                    ) : null}
-                  </div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Trophy className="h-4 w-4 text-primary" />
+                    {currentTitle}
+                  </CardTitle>
+                  {currentRange ? (
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span>{currentRange}</span>
+                      {currentDday ? (
+                        <Badge variant="secondary" className="px-2 py-0.5 text-[11px]">
+                          {currentDday}
+                        </Badge>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <div className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2.5">
                     <p className="text-xs font-semibold uppercase tracking-wide text-primary">This week&apos;s theme</p>
                     <p className="mt-1 text-sm font-semibold leading-snug tracking-tight sm:text-base break-words">
