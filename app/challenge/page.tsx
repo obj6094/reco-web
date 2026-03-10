@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
 import { ArrowRight, ChevronDown, ChevronUp, Play, Search, ThumbsUp, Trophy, Music2 } from "lucide-react";
+import { SubmissionCard, type SubmissionCardData } from "@/components/SubmissionCard";
+import { ExpandableText } from "@/components/ExpandableText";
 
 type Track = {
   id: string;
@@ -76,12 +78,9 @@ export default function ChallengePage() {
   const [mySubmission, setMySubmission] = useState<Submission | null>(null);
   const [votingOnId, setVotingOnId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"votes" | "recent">("votes");
-  const [expandedPlayId, setExpandedPlayId] = useState<string | null>(null);
-  const [expandedCommentId, setExpandedCommentId] = useState<string | null>(null);
   const [pastChallenges, setPastChallenges] = useState<PastChallengeItem[]>([]);
   const [expandedPastId, setExpandedPastId] = useState<string | null>(null);
   const [loadingPast, setLoadingPast] = useState(false);
-  const COMMENT_PREVIEW_LEN = 80;
 
   const embedUrl = useMemo(() => {
     if (!selected) return null;
@@ -675,7 +674,7 @@ export default function ChallengePage() {
                       className="w-full rounded-2xl border border-border"
                       src={embedUrl}
                       width="100%"
-                      height="152"
+                      height="80"
                       allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                       loading="lazy"
                     />
@@ -767,59 +766,26 @@ export default function ChallengePage() {
                     />
                   ) : (
                     <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      {previewSubmissions.map((s) => (
-                        <li key={s.id} className="rounded-xl border border-border bg-muted/40 p-3">
-                          <div className="flex items-start gap-3">
-                            <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl border border-border bg-card">
-                              {s.albumImage ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={s.albumImage} alt={s.trackName} className="h-full w-full object-cover" />
-                              ) : null}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate text-sm font-semibold">{s.trackName}</div>
-                              <div className="truncate text-xs text-muted-foreground">{s.artistName}</div>
-                              <div className="mt-2 flex flex-wrap items-center gap-2">
-                                <Badge variant="secondary">{s.voteCount} votes</Badge>
-                                {s.submitterNickname || s.submitterUsername ? (
-                                  <Link
-                                    href={`/u/${encodeURIComponent((s.submitterNickname ?? s.submitterUsername ?? "user") as string)}`}
-                                    className="text-xs text-primary hover:underline"
-                                  >
-                                    by {getDisplayName(s.submitterNickname, s.submitterUsername)}
-                                  </Link>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">by user</span>
-                                )}
-                              </div>
-                            </div>
-                            {s.spotify_track_id ? (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="shrink-0"
-                                onClick={() => setExpandedPlayId(expandedPlayId === s.id ? null : s.id)}
-                              >
-                                <Play className="h-4 w-4" />
-                                {expandedPlayId === s.id ? "Hide" : "Play"}
-                              </Button>
-                            ) : null}
-                          </div>
-                          {expandedPlayId === s.id && s.spotify_track_id ? (
-                            <div className="mt-3 overflow-hidden rounded-xl border border-border">
-                              <iframe
-                                className="w-full"
-                                src={`https://open.spotify.com/embed/track/${s.spotify_track_id}`}
-                                width="100%"
-                                height="152"
-                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                                loading="lazy"
-                                title={`Play ${s.trackName}`}
-                              />
-                            </div>
-                          ) : null}
-                        </li>
-                      ))}
+                      {previewSubmissions.map((s) => {
+                        const data: SubmissionCardData = {
+                          id: s.id,
+                          trackName: s.trackName,
+                          artistName: s.artistName,
+                          albumImage: s.albumImage,
+                          comment: s.comment,
+                          voteCount: s.voteCount,
+                          spotify_track_id: s.spotify_track_id,
+                          submitterNickname: s.submitterNickname,
+                          submitterUsername: s.submitterUsername,
+                          isMine: s.isMine,
+                          viewerVoted: s.viewerVoted,
+                        };
+                        return (
+                          <li key={s.id}>
+                            <SubmissionCard submission={data} canVote={false} variant="compact" />
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                 </div>
@@ -848,7 +814,7 @@ export default function ChallengePage() {
                     <CardDescription>One track per challenge. No changes after submit.</CardDescription>
                   </CardHeader>
                   <CardContent className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-4 min-w-0">
+                    <div className="flex min-w-0 items-center gap-4">
                       <div className="h-16 w-16 overflow-hidden rounded-2xl border border-border bg-card">
                         {mySubmission.albumImage ? (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -860,7 +826,11 @@ export default function ChallengePage() {
                         <div className="truncate text-sm text-muted-foreground">{mySubmission.artistName}</div>
                         {mySubmission.comment ? (
                           <div className="mt-2 rounded-2xl border border-border bg-accent/40 px-3 py-2 text-sm">
-                            "{mySubmission.comment}"
+                            <ExpandableText
+                              text={mySubmission.comment}
+                              maxChars={140}
+                              toggleAriaLabel="Toggle challenge submission comment"
+                            />
                           </div>
                         ) : null}
                       </div>
@@ -941,117 +911,38 @@ export default function ChallengePage() {
                     className="grid grid-cols-1 gap-3 sm:grid-cols-2"
                     transition={{ type: "spring", stiffness: 260, damping: 28 }}
                   >
-                    {previewSubmissions.map((s) => (
-                      <motion.li
-                        key={s.id}
-                        layout
-                        whileHover={{ scale: 1.01 }}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.18 }}
-                      >
-                        <Card className={s.isMine ? "border-primary/60 bg-primary/5" : "bg-muted/40 border-border/80"}>
-                          <CardContent className="p-4 space-y-3">
-                            <div className="flex flex-wrap items-start gap-3">
-                              <div className="shrink-0 flex flex-col">
-                                <div className="h-14 w-14 overflow-hidden rounded-2xl border border-border bg-card">
-                                  {s.albumImage ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={s.albumImage} alt={s.trackName} className="h-full w-full object-cover" />
-                                  ) : null}
-                                </div>
-                                <div className="mt-1.5 flex flex-row flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                                  <Badge variant="secondary" className="w-fit">{s.voteCount} votes</Badge>
-                                  {s.submitterNickname || s.submitterUsername ? (
-                                    <Link
-                                      href={`/u/${encodeURIComponent((s.submitterNickname ?? s.submitterUsername ?? "user") as string)}`}
-                                      className="text-primary hover:underline w-fit"
-                                    >
-                                      by {getDisplayName(s.submitterNickname, s.submitterUsername)}
-                                    </Link>
-                                  ) : (
-                                    <span className="text-muted-foreground">by user</span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <div className="truncate text-sm font-semibold">{s.trackName}</div>
-                                  {s.isMine ? <Badge variant="secondary">Yours</Badge> : null}
-                                </div>
-                                <div className="truncate text-xs text-muted-foreground">{s.artistName}</div>
-                              </div>
-                              <div className="flex shrink-0 flex-col gap-2 [&_button]:min-h-[44px]">
-                                <motion.div
-                                  whileTap={{ scale: 0.98 }}
-                                  animate={s.viewerVoted ? { scale: 1.02 } : { scale: 1 }}
-                                  transition={{ duration: 0.12 }}
-                                >
-                                  <Button
-                                    size="sm"
-                                    variant={s.viewerVoted ? "default" : "outline"}
-                                    onClick={() => toggleVote(s)}
-                                    disabled={s.isMine || votingOnId === s.id}
-                                  >
-                                    <ThumbsUp className="h-4 w-4" />
-                                    {s.isMine ? "Mine" : votingOnId === s.id ? "?" : s.viewerVoted ? "Voted" : "Vote"}
-                                  </Button>
-                                </motion.div>
-                                {s.spotify_track_id ? (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => setExpandedPlayId(expandedPlayId === s.id ? null : s.id)}
-                                  >
-                                    <Play className="h-4 w-4" />
-                                    {expandedPlayId === s.id ? "Hide" : "Play"}
-                                  </Button>
-                                ) : null}
-                              </div>
-                            </div>
-                              <AnimatePresence>
-                                {expandedPlayId === s.id && s.spotify_track_id ? (
-                                  <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: "auto", opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="mt-3 overflow-hidden"
-                                  >
-                                    <iframe
-                                      className="w-full rounded-xl border border-border"
-                                      src={`https://open.spotify.com/embed/track/${s.spotify_track_id}`}
-                                      width="100%"
-                                      height="152"
-                                      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                                      loading="lazy"
-                                      title={`Play ${s.trackName}`}
-                                    />
-                                  </motion.div>
-                                ) : null}
-                              </AnimatePresence>
-                              {s.comment ? (
-                                <div className="mt-3 rounded-lg border border-border/70 bg-background/50 px-3 py-2 text-sm text-foreground/90">
-                                  <span className="break-words">
-                                    {expandedCommentId === s.id || (s.comment?.length ?? 0) <= COMMENT_PREVIEW_LEN
-                                      ? s.comment
-                                      : `${s.comment.slice(0, COMMENT_PREVIEW_LEN)}?`}
-                                  </span>
-                                  {(s.comment?.length ?? 0) > COMMENT_PREVIEW_LEN ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => setExpandedCommentId(expandedCommentId === s.id ? null : s.id)}
-                                      className="ml-1.5 text-xs text-primary hover:underline min-h-[44px] sm:min-h-0"
-                                    >
-                                      {expandedCommentId === s.id ? "Collapse" : "Expand"}
-                                    </button>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                            </CardContent>
-                        </Card>
-                      </motion.li>
-                    ))}
+                    {previewSubmissions.map((s) => {
+                      const data: SubmissionCardData = {
+                        id: s.id,
+                        trackName: s.trackName,
+                        artistName: s.artistName,
+                        albumImage: s.albumImage,
+                        comment: s.comment,
+                        voteCount: s.voteCount,
+                        spotify_track_id: s.spotify_track_id,
+                        submitterNickname: s.submitterNickname,
+                        submitterUsername: s.submitterUsername,
+                        isMine: s.isMine,
+                        viewerVoted: s.viewerVoted,
+                      };
+                      return (
+                        <motion.li
+                          key={s.id}
+                          layout
+                          whileHover={{ scale: 1.01 }}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.18 }}
+                        >
+                          <SubmissionCard
+                            submission={data}
+                            canVote
+                            onVote={() => toggleVote(s)}
+                            voting={votingOnId === s.id}
+                          />
+                        </motion.li>
+                      );
+                    })}
                   </motion.ul>
                 )}
 
