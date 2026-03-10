@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
+import { ExpandableText } from "@/components/ExpandableText";
 import { ArrowLeft, ArrowRight, Crown, Lock, Play, Search, Sparkles, Tag, ThumbsUp } from "lucide-react";
 
 type RequestDetail = {
@@ -632,68 +633,68 @@ export default function RequestDetailPage() {
                         transition={{ duration: 0.15 }}
                       >
                         <Card className={isBest ? "border-primary/70 bg-primary/5" : ""}>
-                          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:p-5">
-                            <div className="min-w-0 space-y-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <div className="truncate text-sm font-semibold">{ans.trackName}</div>
-                                {isBest ? (
-                                  <Badge className="gap-1">
-                                    <Crown className="h-3.5 w-3.5" />
-                                    Best Reco
-                                  </Badge>
-                                ) : null}
-                                {isMine && !isBest ? (
-                                  <Badge variant="secondary">My answer</Badge>
+                          <CardContent className="space-y-2.5 p-3 sm:p-5">
+                            {/* Top row: cover + title/artist + badges */}
+                            <div className="flex min-w-0 items-center gap-3">
+                              <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-2xl border border-border bg-card sm:h-16 sm:w-16">
+                                {ans.albumImage ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={ans.albumImage}
+                                    alt={ans.trackName}
+                                    className="h-full w-full object-cover"
+                                  />
                                 ) : null}
                               </div>
-                              {ans.albumImage ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={ans.albumImage}
-                                  alt={ans.trackName}
-                                  className="h-14 w-14 rounded-xl border border-border object-cover"
-                                />
-                              ) : null}
-                              <div className="truncate text-xs text-muted-foreground">{ans.artistName}</div>
-                              <div className="text-xs text-muted-foreground">by @{ans.responderName}</div>
-                              {ans.comment ? (
-                                <div className="rounded-lg border border-border/70 bg-background/50 px-3 py-2 text-sm text-foreground/90">“{expandedCommentAnswerId === ans.id || (ans.comment?.length ?? 0) <= COMMENT_PREVIEW_LEN ? ans.comment : `${ans.comment.slice(0, COMMENT_PREVIEW_LEN)}…`}”</div>
-                              ) : null}
-                              {(ans.comment?.length ?? 0) > COMMENT_PREVIEW_LEN ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setExpandedCommentAnswerId(expandedCommentAnswerId === ans.id ? null : ans.id)}
-                                  className="mt-1 text-xs text-primary hover:underline min-h-[44px] sm:min-h-0"
-                                >
-                                  {expandedCommentAnswerId === ans.id ? "Collapse" : "Expand"}
-                                </button>
-                              ) : null}
-                              {expandedPlayAnswerId === ans.id && ans.trackId ? (
-                                <iframe
-                                  className="w-full rounded-xl border border-border"
-                                  src={`https://open.spotify.com/embed/track/${ans.trackId}`}
-                                  width="100%"
-                                  height="80"
-                                  allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                                  loading="lazy"
-                                  title={`Play ${ans.trackName}`}
-                                />
-                              ) : null}
-                              <div className="text-xs text-muted-foreground">
-                                {new Date(ans.created_at).toLocaleString()}
+                              <div className="min-w-0 flex-1 space-y-0.5">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <div className="truncate text-sm font-semibold">{ans.trackName}</div>
+                                  {isBest ? (
+                                    <Badge className="gap-1">
+                                      <Crown className="h-3.5 w-3.5" />
+                                      Best Reco
+                                    </Badge>
+                                  ) : null}
+                                  {isMine && !isBest ? (
+                                    <Badge variant="secondary">My answer</Badge>
+                                  ) : null}
+                                </div>
+                                <div className="truncate text-xs text-muted-foreground">
+                                  {ans.artistName}
+                                </div>
                               </div>
                             </div>
 
-                            <div className="flex min-h-[44px] flex-row flex-wrap items-center gap-2 sm:flex-col sm:items-end [&>button]:min-h-[44px]">
+                            {/* Second row: metadata */}
+                            <div className="text-xs text-muted-foreground">
+                              <span className="font-medium">{ans.niceRecoCount}</span>{" "}
+                              {ans.niceRecoCount === 1 ? "reco" : "recos"} • by @{ans.responderName}
+                            </div>
+
+                            {/* Third row: comment preview */}
+                            {ans.comment ? (
+                              <ExpandableText
+                                text={ans.comment}
+                                maxChars={160}
+                                variant="compact-card"
+                                toggleAriaLabel="Toggle answer comment expansion"
+                              />
+                            ) : null}
+
+                            {/* Bottom row: buttons */}
+                            <div className="flex flex-row flex-wrap items-center gap-2 pt-0.5">
                               {ans.trackId ? (
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   onClick={() =>
-                                    setExpandedPlayAnswerId((prev) => (prev === ans.id ? null : ans.id))
+                                    setExpandedPlayAnswerId((prev) =>
+                                      prev === ans.id ? null : ans.id,
+                                    )
                                   }
+                                  className="px-3 py-1.5 text-xs"
                                 >
-                                  <Play className="h-4 w-4" />
+                                  <Play className="mr-1 h-3.5 w-3.5" />
                                   {expandedPlayAnswerId === ans.id ? "Hide" : "Play"}
                                 </Button>
                               ) : null}
@@ -701,7 +702,10 @@ export default function RequestDetailPage() {
                                 variant={ans.likedByMe ? "default" : "outline"}
                                 size="sm"
                                 onClick={() => handleNiceReco(ans.id)}
-                                className={ans.likedByMe ? "bg-blue-600 text-white hover:bg-blue-500" : ""}
+                                className={cn(
+                                  "px-3 py-1.5 text-xs",
+                                  ans.likedByMe && "bg-blue-600 text-white hover:bg-blue-500",
+                                )}
                                 disabled={
                                   !!niceRecoSubmittingId ||
                                   ans.likedByMe ||
@@ -710,7 +714,7 @@ export default function RequestDetailPage() {
                                   answers.some((a) => a.responder_id === userId)
                                 }
                               >
-                                <ThumbsUp className="h-4 w-4" />
+                                <ThumbsUp className="mr-1 h-3.5 w-3.5" />
                                 {ans.likedByMe
                                   ? "Liked"
                                   : niceRecoSubmittingId === ans.id
@@ -719,11 +723,33 @@ export default function RequestDetailPage() {
                                 ({ans.niceRecoCount})
                               </Button>
                               {userId === request.requester_id && !isBest ? (
-                                <Button variant="outline" size="sm" onClick={() => markBest(ans.id)}>
-                                  <Crown className="h-4 w-4" />
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => markBest(ans.id)}
+                                  className="px-3 py-1.5 text-xs"
+                                >
+                                  <Crown className="mr-1 h-3.5 w-3.5" />
                                   Mark Best
                                 </Button>
                               ) : null}
+                            </div>
+
+                            {/* Spotify player */}
+                            {expandedPlayAnswerId === ans.id && ans.trackId ? (
+                              <iframe
+                                className="mt-1.5 w-full rounded-xl border border-border"
+                                src={`https://open.spotify.com/embed/track/${ans.trackId}`}
+                                width="100%"
+                                height="80"
+                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                                loading="lazy"
+                                title={`Play ${ans.trackName}`}
+                              />
+                            ) : null}
+
+                            <div className="text-xs text-muted-foreground">
+                              {new Date(ans.created_at).toLocaleString()}
                             </div>
                           </CardContent>
                         </Card>
