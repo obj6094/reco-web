@@ -44,14 +44,7 @@ type PastChallengeItem = {
   id: string;
   prompt: string;
   starts_at: string | null;
-  topSubmissions: {
-    trackName: string;
-    artistName: string;
-    albumImage: string | null;
-    comment: string | null;
-    voteCount: number;
-    created_at: string;
-  }[];
+  ends_at: string | null;
 };
 
 export default function ChallengePage() {
@@ -79,7 +72,6 @@ export default function ChallengePage() {
   const [votingOnId, setVotingOnId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"votes" | "recent">("votes");
   const [pastChallenges, setPastChallenges] = useState<PastChallengeItem[]>([]);
-  const [expandedPastId, setExpandedPastId] = useState<string | null>(null);
   const [loadingPast, setLoadingPast] = useState(false);
 
   const embedUrl = useMemo(() => {
@@ -112,18 +104,21 @@ export default function ChallengePage() {
         }
       }
 
-      // ?? ??? ??????
+      // Time-based current challenge: starts_at <= now < ends_at
+      const now = new Date().toISOString();
       const { data, error } = await supabase
         .from("weekly_challenges")
         .select("*")
+        .lte("starts_at", now)
+        .gt("ends_at", now)
         .order("starts_at", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-    if (error) {
-      setStatus("Failed to load challenge: " + error.message);
-    } else {
-        setChallenge(data);
+      if (error) {
+        setStatus("Failed to load challenge: " + error.message);
+      } else {
+        setChallenge(data ?? null);
       }
 
       setAuthChecked(true);
@@ -220,19 +215,16 @@ export default function ChallengePage() {
   const previewSubmissions = sortedSubmissions.slice(0, 4);
   const previewPastChallenges = pastChallenges.slice(0, 4);
 
-  function challengeDuration(startsAt: string | null): string {
-    if (!startsAt) return "";
+  function challengeDuration(startsAt: string | null, endsAt: string | null): string {
+    if (!startsAt || !endsAt) return "";
     const start = new Date(startsAt);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    return `${start.toLocaleDateString()} ? ${end.toLocaleDateString()}`;
+    const end = new Date(endsAt);
+    return `${start.toLocaleDateString()} – ${end.toLocaleDateString()}`;
   }
 
-  function challengeDday(startsAt: string | null): string {
-    if (!startsAt) return "";
-    const start = new Date(startsAt);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
+  function challengeDday(endsAt: string | null): string {
+    if (!endsAt) return "";
+    const end = new Date(endsAt);
     end.setHours(23, 59, 59, 999);
     const now = new Date();
     const diffMs = end.getTime() - now.getTime();
@@ -243,82 +235,22 @@ export default function ChallengePage() {
   }
 
   useEffect(() => {
-    if (!challenge?.id) return;
+    const now = new Date().toISOString();
     async function loadPast() {
       setLoadingPast(true);
-      const { data: allChallenges, error: challengeError } = await supabase
+      const { data, error } = await supabase
         .from("weekly_challenges")
-        .select("id, prompt, starts_at")
+        .select("id, prompt, starts_at, ends_at")
+        .lt("ends_at", now)
         .order("starts_at", { ascending: false })
-        .limit(11);
-      if (challengeError) {
-        setLoadingPast(false);
-        return;
-      }
-      const past = (allChallenges ?? []).filter((c: any) => c.id !== challenge.id).slice(0, 10);
-      if (past.length === 0) {
-        setPastChallenges([]);
-        setLoadingPast(false);
-        return;
-      }
-      const pastIds = past.map((c: any) => c.id);
-      const { data: subRows, error: subError } = await supabase
-        .from("challenge_submissions")
-        .select("id, challenge_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at")
-        .in("challenge_id", pastIds);
-      if (subError) {
+        .limit(8);
+
+      if (error) {
         setLoadingPast(false);
         return;
       }
 
-      const submissionIds = (subRows ?? []).map((row: any) => row.id);
-      let voteCountBySubmission: Record<string, number> = {};
-      if (submissionIds.length) {
-        const { data: voteRows } = await supabase
-          .from("challenge_votes")
-          .select("submission_id")
-          .in("submission_id", submissionIds);
-        (voteRows ?? []).forEach((row: any) => {
-          voteCountBySubmission[row.submission_id] = (voteCountBySubmission[row.submission_id] ?? 0) + 1;
-        });
-      }
-
-      const byChallenge: Record<
-        string,
-        {
-          trackName: string;
-          artistName: string;
-          albumImage: string | null;
-          comment: string | null;
-          voteCount: number;
-          created_at: string;
-        }[]
-      > = {};
-      past.forEach((c: any) => { byChallenge[c.id] = []; });
-      (subRows ?? []).forEach((row: any) => {
-        const voteCount = voteCountBySubmission[row.id] ?? 0;
-        const arr = byChallenge[row.challenge_id];
-        if (arr) {
-          arr.push({
-            trackName: row.spotify_track_name,
-            artistName: row.spotify_artist_name,
-            albumImage: row.spotify_album_image_url,
-            comment: row.comment,
-            voteCount,
-            created_at: row.created_at,
-          });
-        }
-      });
-      const items: PastChallengeItem[] = past.map((c: any) => {
-        const list = (byChallenge[c.id] ?? [])
-          .sort((a, b) => {
-            if (b.voteCount !== a.voteCount) return b.voteCount - a.voteCount;
-            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-          })
-          .slice(0, 3);
-        return { id: c.id, prompt: c.prompt, starts_at: c.starts_at, topSubmissions: list };
-      });
-      setPastChallenges(items);
+      setPastChallenges((data ?? []) as PastChallengeItem[]);
       setLoadingPast(false);
     }
     loadPast();
@@ -586,9 +518,11 @@ export default function ChallengePage() {
           {userId ? (
             <div className="mt-4 flex flex-wrap items-center gap-4">
               <span className="text-sm text-muted-foreground">
-                {challengeDuration(challenge.starts_at)}
+                {challengeDuration(challenge.starts_at, challenge.ends_at)}
               </span>
-              <Badge className="border border-primary/40 bg-primary/10 text-primary">{challengeDday(challenge.starts_at)}</Badge>
+              <Badge className="border border-primary/40 bg-primary/10 text-primary">
+                {challengeDday(challenge.ends_at)}
+              </Badge>
               <p className="text-sm text-muted-foreground">
                 Submit your track here. Voting is available in the submissions list below.
               </p>
@@ -596,9 +530,11 @@ export default function ChallengePage() {
           ) : (
             <div className="mt-5 space-y-3">
               <span className="block text-sm text-muted-foreground">
-                {challengeDuration(challenge.starts_at)}
+                {challengeDuration(challenge.starts_at, challenge.ends_at)}
               </span>
-              <Badge className="w-fit border border-primary/40 bg-primary/10 text-primary">{challengeDday(challenge.starts_at)}</Badge>
+              <Badge className="w-fit border border-primary/40 bg-primary/10 text-primary">
+                {challengeDday(challenge.ends_at)}
+              </Badge>
               <div className="rounded-2xl border border-border bg-accent/30 p-3 sm:p-4">
                 <p className="text-sm text-foreground/90">
                   Log in or sign up to submit your track and vote on submissions.
@@ -971,7 +907,7 @@ export default function ChallengePage() {
               <Trophy className="h-4 w-4 text-primary" />
               Past Challenges
             </CardTitle>
-            <CardDescription>Click to expand and see top 3 submissions.</CardDescription>
+            <CardDescription>Previous challenges and their date ranges.</CardDescription>
           </CardHeader>
           <CardContent>
             {loadingPast ? (
@@ -984,79 +920,27 @@ export default function ChallengePage() {
               />
             ) : (
               <ul className="space-y-2">
-                {previewPastChallenges.map((past) => {
-                  const isExpanded = expandedPastId === past.id;
-                  const top = past.topSubmissions[0];
-                  return (
-                    <li key={past.id}>
-                      <Card>
-                        <button
-                          type="button"
-                          className="w-full text-left"
-                          onClick={() => setExpandedPastId(isExpanded ? null : past.id)}
-                        >
-                          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-                            <div className="min-w-0 flex-1">
-                              <p className="font-medium">{past.prompt}</p>
-                              {top ? (
-                                <div className="mt-2 flex items-center gap-2">
-                                  {top.albumImage ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={top.albumImage} alt="" className="h-8 w-8 rounded-md object-cover" />
-                                  ) : null}
-                                  <p className="min-w-0 truncate text-sm text-muted-foreground">
-                                    #1: {top.trackName} ? {top.artistName}
-                                  </p>
-                                </div>
-                              ) : (
-                                <p className="mt-1 text-sm text-muted-foreground">No submissions</p>
-                              )}
-                            </div>
-                            {isExpanded ? (
-                              <ChevronUp className="h-5 w-5 shrink-0 text-muted-foreground" />
-                            ) : (
-                              <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground" />
-                            )}
-                          </CardContent>
-                        </button>
-                        <AnimatePresence>
-                          {isExpanded && past.topSubmissions.length > 0 ? (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden border-t border-border"
-                            >
-                              <ul className="divide-y divide-border px-4 py-3">
-                                {past.topSubmissions.map((sub, idx) => (
-                                  <li key={idx} className="flex items-center gap-3 py-3 first:pt-0">
-                                    <span className="font-medium text-muted-foreground">#{idx + 1}</span>
-                                    {sub.albumImage ? (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img
-                                        src={sub.albumImage}
-                                        alt=""
-                                        className="h-10 w-10 rounded-lg object-cover"
-                                      />
-                                    ) : null}
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-sm font-medium">{sub.trackName}</p>
-                                      <p className="text-xs text-muted-foreground">{sub.artistName}</p>
-                                      {idx === 0 && sub.comment ? (
-                                        <p className="mt-1 text-sm text-foreground/90">&quot;{sub.comment}&quot;</p>
-                                      ) : null}
-                                    </div>
-                                    <Badge variant="secondary">{sub.voteCount} votes</Badge>
-                                  </li>
-                                ))}
-                              </ul>
-                            </motion.div>
-                          ) : null}
-                        </AnimatePresence>
-                      </Card>
-                    </li>
-                  );
-                })}
+                {previewPastChallenges.map((past) => (
+                  <li key={past.id}>
+                    <Link
+                      href={`/challenge/past/${past.id}`}
+                      className="block rounded-2xl border border-border bg-accent/30 px-3 py-3 hover:bg-accent/40 transition-colors"
+                    >
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
+                        <div className="text-sm font-semibold break-words sm:max-w-[70%]">
+                          {past.prompt}
+                        </div>
+                        <div className="text-xs text-muted-foreground sm:text-right">
+                          {past.starts_at && past.ends_at
+                            ? `${new Date(past.starts_at).toLocaleDateString()} – ${new Date(
+                                past.ends_at,
+                              ).toLocaleDateString()}`
+                            : "-"}
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
               </ul>
             )}
             {pastChallenges.length > previewPastChallenges.length ? (

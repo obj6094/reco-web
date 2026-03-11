@@ -11,6 +11,7 @@ type PastItem = {
   id: string;
   prompt: string;
   starts_at: string | null;
+  ends_at: string | null;
 };
 
 export default function PastChallengesPage() {
@@ -19,9 +20,11 @@ export default function PastChallengesPage() {
 
   useEffect(() => {
     async function load() {
+      const now = new Date().toISOString();
       const { data } = await supabase
         .from("weekly_challenges")
-        .select("id, prompt, starts_at")
+        .select("id, prompt, starts_at, ends_at")
+        .lt("ends_at", now)
         .order("starts_at", { ascending: false });
 
       setItems((data ?? []) as PastItem[]);
@@ -53,11 +56,24 @@ export default function PastChallengesPage() {
             ) : (
               <ul className="space-y-2">
                 {items.map((item) => (
-                  <li key={item.id} className="rounded-xl border border-border bg-accent/30 px-3 py-3">
-                    <div className="font-medium">{item.prompt}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {item.starts_at ? new Date(item.starts_at).toLocaleDateString() : "-"}
-                    </div>
+                  <li key={item.id}>
+                    <Link
+                      href={`/challenge/past/${item.id}`}
+                      className="block rounded-xl border border-border bg-accent/30 px-3 py-3 hover:bg-accent/40 transition-colors"
+                    >
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
+                        <div className="text-sm font-semibold break-words sm:max-w-[70%]">
+                          {item.prompt}
+                        </div>
+                        <div className="text-xs text-muted-foreground sm:text-right">
+                          {item.starts_at && item.ends_at
+                            ? `${new Date(item.starts_at).toLocaleDateString()} – ${new Date(
+                                item.ends_at,
+                              ).toLocaleDateString()}`
+                            : "-"}
+                        </div>
+                      </div>
+                    </Link>
                   </li>
                 ))}
               </ul>

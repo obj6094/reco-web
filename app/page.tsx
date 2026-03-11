@@ -16,6 +16,7 @@ type WeeklyChallenge = {
   id: string;
   prompt: string;
   starts_at: string | null;
+  ends_at: string | null;
   week_start: string | null;
 };
 
@@ -93,25 +94,38 @@ export default function HomePage() {
 
       // weekly_challenges 는 RLS 에서 공개 조회가 가능해야 한다
       setLoadingChallenges(true);
-      const { data, error } = await supabase
+      const now = new Date().toISOString();
+
+      const { data: currentRow, error: currentError } = await supabase
         .from("weekly_challenges")
         .select("*")
+        .lte("starts_at", now)
+        .gt("ends_at", now)
         .order("starts_at", { ascending: false })
-        .limit(10);
+        .limit(1)
+        .maybeSingle();
 
-      if (error) {
-        setStatus("Failed to load challenge data: " + error.message);
+      if (currentError) {
+        setStatus("Failed to load challenge data: " + currentError.message);
         setLoadingChallenges(false);
         return;
       }
 
-      if (data && data.length) {
-        setCurrent(data[0] as WeeklyChallenge);
-        setPast(data.slice(1) as WeeklyChallenge[]);
-      } else {
-        setCurrent(null);
-        setPast([]);
+      const { data: pastRows, error: pastError } = await supabase
+        .from("weekly_challenges")
+        .select("*")
+        .lt("ends_at", now)
+        .order("starts_at", { ascending: false })
+        .limit(10);
+
+      if (pastError) {
+        setStatus("Failed to load past challenges: " + pastError.message);
+        setLoadingChallenges(false);
+        return;
       }
+
+      setCurrent((currentRow as WeeklyChallenge | null) ?? null);
+      setPast((pastRows as WeeklyChallenge[] | null) ?? []);
 
       setLoadingChallenges(false);
     }
@@ -227,18 +241,15 @@ export default function HomePage() {
   }, [current]);
 
   const currentRange = useMemo(() => {
-    if (!current?.starts_at) return null;
+    if (!current?.starts_at || !current.ends_at) return null;
     const start = new Date(current.starts_at);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
+    const end = new Date(current.ends_at);
     return `${start.toLocaleDateString()} → ${end.toLocaleDateString()}`;
   }, [current]);
 
   const currentDday = useMemo(() => {
-    if (!current?.starts_at) return null;
-    const start = new Date(current.starts_at);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
+    if (!current?.ends_at) return null;
+    const end = new Date(current.ends_at);
     end.setHours(23, 59, 59, 999);
     const now = new Date();
     const diffMs = end.getTime() - now.getTime();
@@ -711,7 +722,7 @@ export default function HomePage() {
         <Card>
           <CardHeader>
             <CardTitle>Past Challenges</CardTitle>
-            <CardDescription>Recent challenges and top recommendations.</CardDescription>
+            <CardDescription>Previous challenges by theme and period.</CardDescription>
           </CardHeader>
           <CardContent>
             {past.length === 0 ? (
@@ -722,21 +733,29 @@ export default function HomePage() {
               />
             ) : (
               <>
-                <div className="grid gap-2">
+                <ul className="space-y-2">
                   {past.slice(0, 4).map((ch) => (
-                    <div
-                      key={ch.id}
-                      className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-accent/30 px-4 py-3"
-                    >
-                      <div className="text-xs text-muted-foreground">
-                        {ch.week_start ? new Date(ch.week_start).toLocaleDateString() : "Past"}
-                      </div>
-                      <div className="flex-1 truncate text-right text-sm">
-                        {ch.prompt}
-                      </div>
-                    </div>
+                    <li key={ch.id}>
+                      <Link
+                        href={`/challenge/past/${ch.id}`}
+                        className="block rounded-2xl border border-border bg-accent/30 px-3 py-3 hover:bg-accent/40 transition-colors"
+                      >
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
+                          <div className="text-sm font-semibold break-words sm:max-w-[70%]">
+                            {ch.prompt}
+                          </div>
+                          <div className="text-xs text-muted-foreground sm:text-right">
+                            {ch.starts_at && ch.ends_at
+                              ? `${new Date(ch.starts_at).toLocaleDateString()} – ${new Date(
+                                  ch.ends_at,
+                                ).toLocaleDateString()}`
+                              : "-"}
+                          </div>
+                        </div>
+                      </Link>
+                    </li>
                   ))}
-                </div>
+                </ul>
                 {past.length > 4 ? (
                   <div className="mt-4">
                     <Button variant="outline" asChild>

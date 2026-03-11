@@ -166,7 +166,7 @@
             {spotify_track_id ? (
               <Button
                 size="sm"
-                variant="ghost"
+                variant="outline"
                 onClick={() => setShowPlayer((prev) => !prev)}
                 className="px-3 py-1.5 text-xs"
               >
