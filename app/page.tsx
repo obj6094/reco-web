@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -57,7 +57,7 @@ export default function HomePage() {
 
   useEffect(() => {
     async function boot() {
-      // ?대씪?댁뼵?몄뿉???몄뀡 湲곕컲?쇰줈 濡쒓렇???곹깭 ?뺤씤 (env ??lib/supabaseClient.ts ?먯꽌留??ъ슜)
+      // Check login state from client session (env used in lib/supabaseClient.ts)
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id ?? null;
       setUserId(uid);
@@ -74,7 +74,7 @@ export default function HomePage() {
       }
       setAuthChecked(true);
 
-      // weekly_challenges ??RLS ?먯꽌 怨듦컻 議고쉶媛 媛?ν빐???쒕떎
+      // weekly_challenges must be publicly readable (RLS)
       setLoadingChallenges(true);
       const now = new Date().toISOString();
 
@@ -128,7 +128,8 @@ export default function HomePage() {
     async function loadMyStatus() {
       setStatus("");
 
-      // ?대쾲 二?梨뚮┛吏???쒖텧?덈뒗吏 ?뺤씤
+      // Check if user submitted to this week's challenge
+
       const { data: submissionRow, error: submissionError } = await supabase
         .from("challenge_submissions")
         .select("id")
@@ -142,7 +143,7 @@ export default function HomePage() {
 
       setSubmittedThisWeek(!!submissionRow);
 
-      // ?닿? ?묒꽦???듬???以?Best Reco 濡??좏깮???잛닔 怨꾩궛
+      // Count Best Reco selections from my answers
       const { data: myAnswers, error: answersError } = await supabase
         .from("qna_answers")
         .select("id")
@@ -187,7 +188,7 @@ export default function HomePage() {
     async function loadTrending() {
       setLoadingTrending(true);
 
-      // ?대쾲 二?梨뚮┛吏???곸쐞 ?쒖텧??怨듦컻 ?쇰뱶?⑹쑝濡?遺덈윭?⑤떎 (RLS ?먯꽌 怨듦컻 議고쉶 ?꾩슂)
+      // Load top submissions for this week's challenge (RLS: public read)
       const { data, error } = await supabase
         .from("challenge_submissions")
         .select(
@@ -219,14 +220,14 @@ export default function HomePage() {
 
   const currentTitle = useMemo(() => {
     if (!current) return "No challenge yet";
-    return "This Week?셲 Challenge";
+    return "This Week's Challenge";
   }, [current]);
 
   const currentRange = useMemo(() => {
     if (!current?.starts_at || !current.ends_at) return null;
     const start = new Date(current.starts_at);
     const end = new Date(current.ends_at);
-    return `${start.toLocaleDateString()} ??${end.toLocaleDateString()}`;
+    return `${start.toLocaleDateString()} → ${end.toLocaleDateString()}`;
   }, [current]);
 
   const currentDday = useMemo(() => {
@@ -346,7 +347,7 @@ export default function HomePage() {
       setLoadingCurators(false);
     }
 
-    // ?꾨줈??肄섑뀗痢좊뒗 怨듦컻 議고쉶媛 媛?ν빐???쒕떎 (RLS)
+    // Profiles must be publicly readable (RLS)
     loadTopCurators();
   }, []);
 
@@ -633,7 +634,7 @@ export default function HomePage() {
                           </div>
                           <div className="text-xs text-muted-foreground sm:text-right">
                             {ch.starts_at && ch.ends_at
-                              ? `${new Date(ch.starts_at).toLocaleDateString()} ??${new Date(
+                              ? `${new Date(ch.starts_at).toLocaleDateString()} – ${new Date(
                                   ch.ends_at,
                                 ).toLocaleDateString()}`
                               : "-"}

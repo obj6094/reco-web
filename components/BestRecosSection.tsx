@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
 import { motion } from "framer-motion";
 import { Music2, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { getDisplayName } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
 import { BestRecoCard, type BestRecoItem } from "@/components/BestRecoCard";
@@ -120,9 +120,6 @@ export function BestRecosSection() {
     loadBestRecos();
   }, [loadBestRecos]);
 
-  const displayItems = mobileExpanded ? items : items.slice(0, 1);
-  const hasMoreOnMobile = items.length > 1 && !mobileExpanded;
-
   return (
     <Card>
       <CardHeader>
@@ -149,17 +146,24 @@ export function BestRecosSection() {
               }}
               className="grid grid-cols-1 gap-3 sm:grid-cols-2"
             >
-              {displayItems.map((item) => (
-                <BestRecoCard
+              {items.map((item, index) => (
+                <div
                   key={item.id}
-                  item={item}
-                  expandedId={expandedId}
-                  onExpandToggle={setExpandedId}
-                  variants={MOTION_VARIANTS}
-                />
+                  className={cn(
+                    index >= 1 && !mobileExpanded && "hidden sm:block",
+                  )}
+                >
+                  <BestRecoCard
+                    item={item}
+                    expandedId={expandedId}
+                    onExpandToggle={setExpandedId}
+                    variants={MOTION_VARIANTS}
+                  />
+                </div>
               ))}
             </motion.div>
             {/* Mobile: expand/collapse button - only show when there are 2+ items */}
+            {/* Mobile only: expand/collapse in place (no navigation) */}
             {items.length > 1 ? (
               <div className="mt-4 flex justify-center sm:hidden">
                 <Button
@@ -179,13 +183,6 @@ export function BestRecosSection() {
                       Show more ({items.length} total)
                     </>
                   )}
-                </Button>
-              </div>
-            ) : null}
-            {items.length >= 4 ? (
-              <div className="mt-4 hidden sm:block">
-                <Button variant="outline" asChild>
-                  <Link href="/requests/best-recos">View more</Link>
                 </Button>
               </div>
             ) : null}

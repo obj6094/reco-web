@@ -133,16 +133,18 @@
             )}
           </div>
 
-          {/* Third row: comment preview */}
-          {comment ? (
-            <ExpandableText
-              text={comment}
-              maxChars={160}
-              variant="compact-card"
-              toggleAriaLabel="Toggle comment expansion"
-              className="mt-0.5"
-            />
-          ) : null}
+          {/* Third row: comment - fixed min-height when collapsed, expands when long */}
+          <div className="min-h-[2.5rem]">
+            {comment ? (
+              <ExpandableText
+                text={comment}
+                maxChars={160}
+                variant="compact-card"
+                toggleAriaLabel="Toggle comment expansion"
+                className="mt-0.5"
+              />
+            ) : null}
+          </div>
 
           {/* Bottom row: actions */}
           <div className="flex flex-row flex-wrap items-center gap-2 pt-0.5">
