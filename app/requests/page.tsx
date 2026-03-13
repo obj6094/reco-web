@@ -10,8 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
-import { ExpandableText } from "@/components/ExpandableText";
-import { ArrowRight, MessageCirclePlus, Send, Inbox, CheckCircle, Music2, Play } from "lucide-react";
+import { BestRecosSection } from "@/components/BestRecosSection";
+import { ArrowRight, MessageCirclePlus, Send, Inbox, CheckCircle, Music2 } from "lucide-react";
 
 type QueueRequest = {
   id: string;
@@ -37,21 +37,6 @@ type MyAnswerEntry = {
   mode: "answer" | "nice_reco";
 };
 
-type PublicBestReco = {
-  id: string;
-  prompt: string;
-  created_at: string;
-  trackId: string;
-  trackName: string;
-  artistName: string;
-  albumImage: string | null;
-  comment: string | null;
-  requesterName: string;
-  responderName: string;
-  requesterSlug: string;
-  responderSlug: string;
-};
-
 export default function RequestsPage() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
@@ -65,11 +50,6 @@ export default function RequestsPage() {
   const [myAnswers, setMyAnswers] = useState<MyAnswerEntry[]>([]);
   const [loadingQueue, setLoadingQueue] = useState(false);
   const [loadingMine, setLoadingMine] = useState(false);
-  const [publicBestRecos, setPublicBestRecos] = useState<PublicBestReco[]>([]);
-  const [loadingPublicBestRecos, setLoadingPublicBestRecos] = useState(false);
-  const [expandedPublicBestRecoId, setExpandedPublicBestRecoId] = useState<string | null>(null);
-  const [expandedCommentBestRecoId, setExpandedCommentBestRecoId] = useState<string | null>(null);
-  const COMMENT_PREVIEW_LEN = 80;
   const [myRequestFilter, setMyRequestFilter] = useState<"all" | "pending" | "selected">("all");
   const [status, setStatus] = useState("");
 
@@ -255,104 +235,13 @@ export default function RequestsPage() {
     );
   }, []);
 
-  const loadPublicBestRecos = useCallback(async () => {
-    setLoadingPublicBestRecos(true);
-
-    const { data: reqs, error: reqError } = await supabase
-      .from("qna_requests")
-      .select("id, prompt, best_answer_id, created_at, requester_id")
-      .not("best_answer_id", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(4);
-
-    if (reqError) {
-      setPublicBestRecos([]);
-      setLoadingPublicBestRecos(false);
-      return;
-    }
-
-    const answerIds = (reqs ?? [])
-      .map((r: any) => r.best_answer_id)
-      .filter((id: string | null) => !!id);
-
-    if (!answerIds.length) {
-      setPublicBestRecos([]);
-      setLoadingPublicBestRecos(false);
-      return;
-    }
-
-    const { data: answers, error: ansError } = await supabase
-      .from("qna_answers")
-      .select("id, responder_id, spotify_track_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment")
-      .in("id", answerIds);
-
-    if (ansError) {
-      setPublicBestRecos([]);
-      setLoadingPublicBestRecos(false);
-      return;
-    }
-
-    const answerById: Record<string, any> = {};
-    for (const a of answers ?? []) {
-      answerById[a.id as string] = a;
-    }
-
-    const profileIds = Array.from(
-      new Set(
-        (reqs ?? []).map((r: any) => r.requester_id as string).filter(Boolean).concat(
-          (answers ?? []).map((a: any) => a.responder_id as string).filter(Boolean)
-        )
-      )
-    );
-    const profileMap: Record<string, { nickname: string | null; username: string | null }> = {};
-    if (profileIds.length) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, nickname, username")
-        .in("id", profileIds);
-      (profiles ?? []).forEach((p: any) => {
-        profileMap[p.id as string] = { nickname: p.nickname ?? null, username: p.username ?? null };
-      });
-    }
-    const getDisplayName = (nick: string | null, user: string | null) =>
-      (nick?.trim() || user?.trim() || "user");
-
-    const merged: PublicBestReco[] =
-      reqs?.map((r: any) => {
-        const a = answerById[r.best_answer_id as string];
-        if (!a) return null;
-        const reqProfile = profileMap[r.requester_id as string];
-        const resProfile = profileMap[a.responder_id as string];
-        return {
-          id: r.id as string,
-          prompt: r.prompt as string,
-          created_at: r.created_at as string,
-          trackId: a.spotify_track_id as string,
-          trackName: a.spotify_track_name as string,
-          artistName: a.spotify_artist_name as string,
-          albumImage: (a.spotify_album_image_url as string) ?? null,
-          comment: (a.comment as string | null) ?? null,
-          requesterName: getDisplayName(reqProfile?.nickname, reqProfile?.username),
-          responderName: getDisplayName(resProfile?.nickname, resProfile?.username),
-          requesterSlug: (reqProfile?.nickname ?? reqProfile?.username ?? "user").trim(),
-          responderSlug: (resProfile?.nickname ?? resProfile?.username ?? "user").trim(),
-        };
-      }).filter(Boolean) as PublicBestReco[] ?? [];
-
-    setPublicBestRecos(merged);
-    setLoadingPublicBestRecos(false);
-  }, []);
-
   useEffect(() => {
     async function boot() {
       const { data } = await supabase.auth.getUser();
       const uid = data.user?.id ?? null;
       setUserId(uid);
       setAuthChecked(true);
-      if (!uid) {
-        await loadPublicBestRecos();
-        return;
-      }
+      if (!uid) return;
       const { data: profile } = await supabase
         .from("profiles")
         .select("username")
@@ -369,7 +258,7 @@ export default function RequestsPage() {
       setLoadingMine(false);
     }
     boot();
-  }, [router, loadQueue, loadMyRequests, loadMyAnswers, loadPublicBestRecos]);
+  }, [router, loadQueue, loadMyRequests, loadMyAnswers]);
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -403,7 +292,6 @@ export default function RequestsPage() {
     if (req.answersCount > 0) return { label: "Choose best", variant: "default" };
     return { label: "Awaiting answers", variant: "secondary" };
   }
-  const previewBestRecos = publicBestRecos;
   const filteredMyRequests = useMemo(() => {
     if (myRequestFilter === "selected") return myRequests.filter((r) => !!r.best_answer_id);
     if (myRequestFilter === "pending") return myRequests.filter((r) => !r.best_answer_id);
@@ -448,115 +336,7 @@ export default function RequestsPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Best Recos</CardTitle>
-                <CardDescription>Selected best recommendations from recent requests.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingPublicBestRecos ? (
-                  <div className="text-sm text-muted-foreground">Loading best recos...</div>
-                ) : publicBestRecos.length === 0 ? (
-                  <EmptyState
-                    icon={Music2}
-                    title="No best recos yet"
-                    description="Best picks will appear here."
-                  />
-                ) : (
-                  <motion.div
-                    initial="hidden"
-                    animate="show"
-                    variants={{
-                      hidden: { opacity: 0, y: 10 },
-                      show: { opacity: 1, y: 0, transition: { staggerChildren: 0.05 } },
-                    }}
-                    className="grid grid-cols-1 gap-3 sm:grid-cols-2"
-                  >
-                    {previewBestRecos.map((item) => (
-                      <motion.div
-                        key={item.id}
-                        variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
-                        whileHover={{ scale: 1.01 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        <Card className="overflow-hidden border-border/80 bg-gradient-to-br from-card to-accent/20">
-                          <CardHeader className="space-y-2">
-                            <CardTitle className="line-clamp-2 text-sm">{item.prompt}</CardTitle>
-                            <CardDescription>{new Date(item.created_at).toLocaleDateString()}</CardDescription>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            <div className="flex items-center gap-3">
-                              <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-xl border border-border bg-card">
-                                {item.albumImage ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={item.albumImage} alt={item.trackName} className="h-full w-full object-cover" />
-                                ) : null}
-                              </div>
-                              <div className="min-w-0">
-                                <div className="truncate text-sm font-semibold">{item.trackName}</div>
-                                <div className="truncate text-xs text-muted-foreground">{item.artistName}</div>
-                              </div>
-                            </div>
-                            <div className="space-y-1 rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                              <p>
-                                Request by{" "}
-                                <Link href={`/u/${encodeURIComponent(item.requesterSlug)}`} className="font-medium text-primary hover:underline">
-                                  @{item.requesterName}
-                                </Link>
-                              </p>
-                              <p>
-                                Best Reco by{" "}
-                                <Link href={`/u/${encodeURIComponent(item.responderSlug)}`} className="font-medium text-primary hover:underline">
-                                  @{item.responderName}
-                                </Link>
-                              </p>
-                            </div>
-                            {item.comment ? (
-                              <ExpandableText
-                                text={item.comment}
-                                maxChars={160}
-                                variant="compact-card"
-                                toggleAriaLabel="Toggle best reco comment expansion"
-                              />
-                            ) : null}
-                            {item.trackId ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  setExpandedPublicBestRecoId((prev) => (prev === item.id ? null : item.id))
-                                }
-                              >
-                                <Play className="h-4 w-4" />
-                                {expandedPublicBestRecoId === item.id ? "Hide" : "Play"}
-                              </Button>
-                            ) : null}
-                            {item.trackId && expandedPublicBestRecoId === item.id ? (
-                              <iframe
-                                className="mt-1 w-full rounded-2xl border border-border"
-                                src={`https://open.spotify.com/embed/track/${item.trackId}`}
-                                width="100%"
-                                height="80"
-                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                                loading="lazy"
-                                title={`Play ${item.trackName}`}
-                              />
-                            ) : null}
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                )}
-                {publicBestRecos.length > previewBestRecos.length ? (
-                  <div className="mt-4">
-                    <Button variant="outline" asChild>
-                      <Link href="/requests/best-recos">View more</Link>
-                    </Button>
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
+            <BestRecosSection />
           </>
         ) : (
           <>
@@ -781,6 +561,8 @@ export default function RequestsPage() {
                 ) : null}
               </CardContent>
             </Card>
+
+            <BestRecosSection />
           </>
         )}
       </div>

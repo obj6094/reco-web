@@ -379,17 +379,35 @@ export default function ChallengePage() {
 
     setVotingOnId(submission.id);
 
-    // UI???? ?? (optimistic update)
+    // Optimistic update
     const before = submissions;
     const optimistic = sortSubmissions(
       submissions.map((s) => {
-        if (s.id !== submission.id) return s;
-        const nextVoted = !s.viewerVoted;
-        return {
-          ...s,
-          viewerVoted: nextVoted,
-          voteCount: Math.max(0, s.voteCount + (nextVoted ? 1 : -1)),
-        };
+        if (submission.viewerVoted && s.id === submission.id) {
+          // Unvote: remove vote from this submission
+          return {
+            ...s,
+            viewerVoted: false,
+            voteCount: Math.max(0, s.voteCount - 1),
+          };
+        }
+        if (!submission.viewerVoted && s.id === submission.id) {
+          // Vote: add to this, remove from any other (one per challenge)
+          return {
+            ...s,
+            viewerVoted: true,
+            voteCount: s.voteCount + 1,
+          };
+        }
+        if (!submission.viewerVoted && s.viewerVoted) {
+          // Moving vote: remove from previously voted
+          return {
+            ...s,
+            viewerVoted: false,
+            voteCount: Math.max(0, s.voteCount - 1),
+          };
+        }
+        return s;
       })
     );
     setSubmissions(optimistic);
@@ -411,7 +429,7 @@ export default function ChallengePage() {
           setStatus("Failed to remove vote: " + error.message);
         }
       } else {
-        // ??? ????? ?? ??????? ?????????
+        // Add vote: one vote per challenge - remove any existing vote first
         const { data: ownerRow, error: ownerError } = await supabase
           .from("challenge_submissions")
           .select("user_id")
@@ -430,6 +448,16 @@ export default function ChallengePage() {
           setMySubmission(before.find((s) => s.isMine) ?? null);
           setStatus("You cannot vote for your own submission.");
           return;
+        }
+
+        // Remove any existing vote by this user in this challenge (one vote per challenge)
+        if (challenge) {
+          const submissionIds = submissions.map((s) => s.id);
+          await supabase
+            .from("challenge_votes")
+            .delete()
+            .eq("voter_id", userId)
+            .in("submission_id", submissionIds);
         }
 
         const { error } = await supabase.from("challenge_votes").insert({
@@ -553,18 +581,24 @@ export default function ChallengePage() {
 
           {userId && !mySubmission ? (
             <div className="mt-6 space-y-4 rounded-2xl border border-border bg-accent/30 p-3 sm:p-4">
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (query.trim()) searchTracks();
+                }}
+                className="flex flex-col gap-2 sm:flex-row"
+              >
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search a song (e.g., Radiohead Creep)"
                   className="min-h-[44px] w-full"
                 />
-                <Button onClick={searchTracks} disabled={searching || !query.trim()} className="min-h-[44px] shrink-0 sm:w-auto">
+                <Button type="submit" disabled={searching || !query.trim()} className="min-h-[44px] shrink-0 sm:w-auto">
                   <Search className="h-4 w-4" />
                   {searching ? "Searching..." : "Search"}
                 </Button>
-              </div>
+              </form>
 
               {tracks.length ? (
                 <motion.div

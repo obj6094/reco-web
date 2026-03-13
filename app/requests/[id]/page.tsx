@@ -731,7 +731,7 @@ export default function RequestDetailPage() {
                                   className="px-3 py-1.5 text-xs"
                                 >
                                   <Crown className="mr-1 h-3.5 w-3.5" />
-                                  Mark Best
+                                  Best Reco
                                 </Button>
                               ) : null}
                             </div>

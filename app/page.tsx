@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -9,8 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { Flame, Sparkles, Trophy, Users, ArrowRight, Lock, Music2, Play } from "lucide-react";
+import { Flame, Sparkles, Trophy, Users, ArrowRight, Lock, Music2 } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
+import { BestRecosSection } from "@/components/BestRecosSection";
 
 type WeeklyChallenge = {
   id: string;
@@ -35,21 +36,6 @@ type TopCurator = {
   score: number;
 };
 
-type BestRecoFromRequest = {
-  id: string;
-  prompt: string;
-  created_at: string;
-  requesterName: string;
-  responderName: string;
-  requesterSlug: string;
-  responderSlug: string;
-  comment: string | null;
-  trackId: string | null;
-  trackName: string;
-  artistName: string;
-  albumImage: string | null;
-};
-
 export default function HomePage() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
@@ -67,15 +53,11 @@ export default function HomePage() {
   const [topCurators, setTopCurators] = useState<TopCurator[]>([]);
   const [loadingCurators, setLoadingCurators] = useState(false);
 
-  const [bestFromRequests, setBestFromRequests] = useState<BestRecoFromRequest[]>([]);
-  const [loadingBestFromRequests, setLoadingBestFromRequests] = useState(false);
-  const [expandedBestRecoId, setExpandedBestRecoId] = useState<string | null>(null);
-
   const [status, setStatus] = useState("");
 
   useEffect(() => {
     async function boot() {
-      // 클라이언트에서 세션 기반으로 로그인 상태 확인 (env 는 lib/supabaseClient.ts 에서만 사용)
+      // ?대씪?댁뼵?몄뿉???몄뀡 湲곕컲?쇰줈 濡쒓렇???곹깭 ?뺤씤 (env ??lib/supabaseClient.ts ?먯꽌留??ъ슜)
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id ?? null;
       setUserId(uid);
@@ -92,7 +74,7 @@ export default function HomePage() {
       }
       setAuthChecked(true);
 
-      // weekly_challenges 는 RLS 에서 공개 조회가 가능해야 한다
+      // weekly_challenges ??RLS ?먯꽌 怨듦컻 議고쉶媛 媛?ν빐???쒕떎
       setLoadingChallenges(true);
       const now = new Date().toISOString();
 
@@ -146,7 +128,7 @@ export default function HomePage() {
     async function loadMyStatus() {
       setStatus("");
 
-      // 이번 주 챌린지에 제출했는지 확인
+      // ?대쾲 二?梨뚮┛吏???쒖텧?덈뒗吏 ?뺤씤
       const { data: submissionRow, error: submissionError } = await supabase
         .from("challenge_submissions")
         .select("id")
@@ -160,7 +142,7 @@ export default function HomePage() {
 
       setSubmittedThisWeek(!!submissionRow);
 
-      // 내가 작성한 답변들 중 Best Reco 로 선택된 횟수 계산
+      // ?닿? ?묒꽦???듬???以?Best Reco 濡??좏깮???잛닔 怨꾩궛
       const { data: myAnswers, error: answersError } = await supabase
         .from("qna_answers")
         .select("id")
@@ -205,7 +187,7 @@ export default function HomePage() {
     async function loadTrending() {
       setLoadingTrending(true);
 
-      // 이번 주 챌린지의 상위 제출을 공개 피드용으로 불러온다 (RLS 에서 공개 조회 필요)
+      // ?대쾲 二?梨뚮┛吏???곸쐞 ?쒖텧??怨듦컻 ?쇰뱶?⑹쑝濡?遺덈윭?⑤떎 (RLS ?먯꽌 怨듦컻 議고쉶 ?꾩슂)
       const { data, error } = await supabase
         .from("challenge_submissions")
         .select(
@@ -237,14 +219,14 @@ export default function HomePage() {
 
   const currentTitle = useMemo(() => {
     if (!current) return "No challenge yet";
-    return "This Week’s Challenge";
+    return "This Week?셲 Challenge";
   }, [current]);
 
   const currentRange = useMemo(() => {
     if (!current?.starts_at || !current.ends_at) return null;
     const start = new Date(current.starts_at);
     const end = new Date(current.ends_at);
-    return `${start.toLocaleDateString()} → ${end.toLocaleDateString()}`;
+    return `${start.toLocaleDateString()} ??${end.toLocaleDateString()}`;
   }, [current]);
 
   const currentDday = useMemo(() => {
@@ -263,7 +245,7 @@ export default function HomePage() {
     async function loadTopCurators() {
       setLoadingCurators(true);
 
-      // Reco Score 계산을 위해 Best Reco와 챌린지 투표 데이터를 모두 모은다
+      // Reco Score: Best Reco count + votes received on submissions
       const { data: bestReqs, error: bestReqError } = await supabase
         .from("qna_requests")
         .select("best_answer_id")
@@ -364,103 +346,8 @@ export default function HomePage() {
       setLoadingCurators(false);
     }
 
-    // 프로필/콘텐츠는 공개 조회가 가능해야 한다 (RLS)
+    // ?꾨줈??肄섑뀗痢좊뒗 怨듦컻 議고쉶媛 媛?ν빐???쒕떎 (RLS)
     loadTopCurators();
-  }, []);
-
-  useEffect(() => {
-    async function loadBestFromRequests() {
-      setLoadingBestFromRequests(true);
-
-      // qna_requests 의 best_answer_id 를 이용해 Best Reco 피드를 구성 (공개 조회)
-      const { data: reqs, error: reqError } = await supabase
-        .from("qna_requests")
-        .select("id, prompt, best_answer_id, created_at, requester_id")
-        .not("best_answer_id", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(4);
-
-      if (reqError) {
-        setLoadingBestFromRequests(false);
-        return;
-      }
-
-      const answerIds = (reqs ?? [])
-        .map((r: any) => r.best_answer_id)
-        .filter((id: string | null) => !!id);
-
-      if (!answerIds.length) {
-        setBestFromRequests([]);
-        setLoadingBestFromRequests(false);
-        return;
-      }
-
-      const { data: answers, error: ansError } = await supabase
-        .from("qna_answers")
-        .select(
-          "id, responder_id, spotify_track_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment"
-        )
-        .in("id", answerIds);
-
-      if (ansError) {
-        setLoadingBestFromRequests(false);
-        return;
-      }
-
-      const answerById: Record<string, any> = {};
-      for (const a of answers ?? []) {
-        answerById[a.id as string] = a;
-      }
-
-      const profileIds = Array.from(
-        new Set(
-          (reqs ?? [])
-            .map((r: any) => r.requester_id as string)
-            .concat((answers ?? []).map((a: any) => a.responder_id as string))
-            .filter(Boolean)
-        )
-      );
-      const profileMap: Record<string, { nickname: string | null; username: string | null }> = {};
-      if (profileIds.length) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, nickname, username")
-          .in("id", profileIds);
-        (profiles ?? []).forEach((p: any) => {
-          profileMap[p.id as string] = {
-            nickname: p.nickname ?? null,
-            username: p.username ?? null,
-          };
-        });
-      }
-
-      const merged: BestRecoFromRequest[] =
-        reqs?.map((r: any) => {
-          const a = answerById[r.best_answer_id as string];
-          if (!a) return null;
-          const reqProfile = profileMap[r.requester_id as string];
-          const resProfile = profileMap[a.responder_id as string];
-          return {
-            id: r.id as string,
-            prompt: r.prompt as string,
-            created_at: r.created_at as string,
-            requesterName: getDisplayName(reqProfile?.nickname, reqProfile?.username),
-            responderName: getDisplayName(resProfile?.nickname, resProfile?.username),
-            requesterSlug: (reqProfile?.nickname ?? reqProfile?.username ?? "user").trim(),
-            responderSlug: (resProfile?.nickname ?? resProfile?.username ?? "user").trim(),
-            comment: (a.comment as string | null) ?? null,
-            trackId: (a.spotify_track_id as string | null) ?? null,
-            trackName: (a.spotify_track_name as string) ?? "Unknown track",
-            artistName: (a.spotify_artist_name as string) ?? "Unknown artist",
-            albumImage: (a.spotify_album_image_url as string | null) ?? null,
-          };
-        }).filter(Boolean) as BestRecoFromRequest[] ?? [];
-
-      setBestFromRequests(merged);
-      setLoadingBestFromRequests(false);
-    }
-
-    loadBestFromRequests();
   }, []);
 
   return (
@@ -485,17 +372,17 @@ export default function HomePage() {
             <p className="max-w-xl text-sm leading-6 text-muted-foreground">
               Recommend songs, vote together, and find your next favorite track.
             </p>
-            <div className="flex flex-wrap gap-2 [&>a]:min-h-[44px] [&>a]:min-w-[44px] [&>button]:min-h-[44px]">
+            <div className="flex flex-wrap gap-2 [&>a]:min-h-[44px] [&>button]:min-h-[44px]">
               {userId ? (
                 <>
-                  <Button asChild>
+                  <Button asChild className="min-h-[44px] min-w-[160px] sm:min-w-[180px]">
                     <Link href="/challenge">
                       <Trophy className="h-4 w-4" />
                       Go to Challenge
                       <ArrowRight className="h-4 w-4" />
                     </Link>
                   </Button>
-                  <Button variant="outline" asChild>
+                  <Button variant="outline" asChild className="min-h-[44px] min-w-[160px] sm:min-w-[180px]">
                     <Link href="/requests">
                       <Music2 className="h-4 w-4" />
                       Browse Requests
@@ -556,7 +443,7 @@ export default function HomePage() {
                   <div className="absolute left-5 top-5 space-y-2">
                     <div className="text-sm font-semibold">Reco</div>
                     <div className="text-xs text-muted-foreground">
-                      Weekly challenge · Voting · QnA
+                      Weekly challenge 쨌 Voting 쨌 QnA
                     </div>
                   </div>
                 </div>
@@ -746,7 +633,7 @@ export default function HomePage() {
                           </div>
                           <div className="text-xs text-muted-foreground sm:text-right">
                             {ch.starts_at && ch.ends_at
-                              ? `${new Date(ch.starts_at).toLocaleDateString()} – ${new Date(
+                              ? `${new Date(ch.starts_at).toLocaleDateString()} ??${new Date(
                                   ch.ends_at,
                                 ).toLocaleDateString()}`
                               : "-"}
@@ -769,111 +656,7 @@ export default function HomePage() {
         </Card>
 
         {/* Best Recos from Requests */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Best Recos from Requests</CardTitle>
-            <CardDescription>Best Recos selected from QnA requests.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loadingBestFromRequests ? (
-              <div className="text-sm text-muted-foreground">Loading...</div>
-            ) : bestFromRequests.length === 0 ? (
-              <EmptyState
-                icon={Music2}
-                title="No best recos yet"
-                description="No best recos yet. Be the first to ask and choose one."
-              />
-            ) : (
-              <motion.div
-                initial="hidden"
-                animate="show"
-                variants={{
-                  hidden: { opacity: 0, y: 10 },
-                  show: { opacity: 1, y: 0, transition: { staggerChildren: 0.05 } },
-                }}
-                className="grid grid-cols-1 gap-3 sm:grid-cols-2"
-              >
-                {bestFromRequests.map((item) => (
-                  <motion.div
-                    key={item.id}
-                    variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
-                    whileHover={{ scale: 1.01 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <Card className="w-full overflow-hidden border-border/80 bg-gradient-to-br from-card to-accent/20">
-                      <CardHeader className="space-y-2 p-4 sm:p-6">
-                        <CardTitle className="line-clamp-2 break-words text-sm">
-                          {item.prompt}
-                        </CardTitle>
-                        <CardDescription>
-                          {new Date(item.created_at).toLocaleDateString()}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <div className="flex items-center gap-3">
-                          <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-xl border border-border bg-card">
-                            {item.albumImage ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={item.albumImage}
-                                alt={item.trackName}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : null}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold">{item.trackName}</div>
-                            <div className="truncate text-xs text-muted-foreground">{item.artistName}</div>
-                          </div>
-                        </div>
-                        <div className="space-y-1 rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                          <p>
-                            Request by{" "}
-                            <Link href={`/u/${encodeURIComponent(item.requesterSlug)}`} className="font-medium text-primary hover:underline">
-                              @{item.requesterName}
-                            </Link>
-                          </p>
-                          <p>
-                            Best Reco by{" "}
-                            <Link href={`/u/${encodeURIComponent(item.responderSlug)}`} className="font-medium text-primary hover:underline">
-                              @{item.responderName}
-                            </Link>
-                          </p>
-                        </div>
-                        {item.comment ? (
-                          <div className="rounded-2xl border border-border bg-accent/40 px-3 py-2 text-sm">
-                            “{item.comment}”
-                          </div>
-                        ) : null}
-                        {item.trackId ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setExpandedBestRecoId((prev) => (prev === item.id ? null : item.id))}
-                          >
-                            <Play className="h-4 w-4" />
-                            {expandedBestRecoId === item.id ? "Hide" : "Play"}
-                          </Button>
-                        ) : null}
-                        {item.trackId && expandedBestRecoId === item.id ? (
-                          <iframe
-                            className="mt-1 w-full rounded-2xl border border-border"
-                            src={`https://open.spotify.com/embed/track/${item.trackId}`}
-                            width="100%"
-                            height="80"
-                            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                            loading="lazy"
-                            title={`Play ${item.trackName}`}
-                          />
-                        ) : null}
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))}
-              </motion.div>
-            )}
-          </CardContent>
-        </Card>
+        <BestRecosSection />
 
         {status ? (
           <div className="rounded-2xl border border-border bg-accent px-4 py-3 text-sm text-foreground/90">

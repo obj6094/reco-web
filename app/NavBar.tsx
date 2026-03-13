@@ -64,84 +64,91 @@ export function NavBar() {
     { href: "/profile", label: "Profile", icon: User, active: pathname === "/profile" },
   ];
 
-  return (
-    <motion.nav
-      initial={{ y: -8, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.25, ease: "easeOut" }}
-      className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/70 backdrop-blur"
-    >
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
-        <div className="flex items-center gap-4">
+  const tabBar = (
+    <div className="mx-auto grid max-w-5xl grid-cols-4 gap-1">
+      {links.map((l) => {
+        const Icon = l.icon;
+        return (
           <Link
-            href="/"
+            key={l.href}
+            href={l.href}
             scroll
             onClick={scrollToTopOnNavigate}
-            className="inline-flex items-center gap-2 font-semibold tracking-tight text-foreground"
+            className={cn(
+              "inline-flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-2.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent/80",
+              l.active && "bg-accent text-foreground"
+            )}
           >
-            <span className="inline-block h-2 w-2 rounded-full bg-primary shadow-[0_0_20px_hsl(var(--primary)/0.65)]" />
-            Reco
+            <Icon className="h-5 w-5 shrink-0" />
+            <span className="truncate max-w-full">{l.label}</span>
           </Link>
+        );
+      })}
+    </div>
+  );
 
-          <div className="hidden items-center gap-1 md:flex">
-            {links.map((l) => {
-              const Icon = l.icon;
-              return (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  scroll
-                  onClick={scrollToTopOnNavigate}
-                  className={cn(
-                    "inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                    l.active && "bg-accent text-foreground"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {l.label}
-                </Link>
-              );
-            })}
+  return (
+    <>
+      <motion.nav
+        initial={{ y: -8, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.25, ease: "easeOut" }}
+        className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/70 backdrop-blur"
+      >
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
+          <div className="flex items-center gap-4">
+            <Link
+              href="/"
+              scroll
+              onClick={scrollToTopOnNavigate}
+              className="inline-flex items-center gap-2 font-semibold tracking-tight text-foreground"
+            >
+              <span className="inline-block h-2 w-2 rounded-full bg-primary shadow-[0_0_20px_hsl(var(--primary)/0.65)]" />
+              Reco
+            </Link>
+
+            <div className="hidden items-center gap-1 md:flex">
+              {links.map((l) => {
+                const Icon = l.icon;
+                return (
+                  <Link
+                    key={l.href}
+                    href={l.href}
+                    scroll
+                    onClick={scrollToTopOnNavigate}
+                    className={cn(
+                      "inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                      l.active && "bg-accent text-foreground"
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {l.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {loggedIn ? (
+              <Button variant="outline" size="sm" onClick={handleLogout}>
+                <LogOut className="h-4 w-4" />
+                Logout
+              </Button>
+            ) : (
+              <Button variant="secondary" size="sm" onClick={() => router.push("/login")}>
+                <LogIn className="h-4 w-4" />
+                Login
+              </Button>
+            )}
           </div>
         </div>
-
-        <div className="flex items-center gap-2">
-          {loggedIn ? (
-            <Button variant="outline" size="sm" onClick={handleLogout}>
-              <LogOut className="h-4 w-4" />
-              Logout
-            </Button>
-          ) : (
-            <Button variant="secondary" size="sm" onClick={() => router.push("/login")}>
-              <LogIn className="h-4 w-4" />
-              Login
-            </Button>
-          )}
-        </div>
+      </motion.nav>
+      {/* Mobile: fixed bottom tab bar - always visible when scrolling */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-background/95 backdrop-blur px-2 py-2.5 md:hidden">
+        {tabBar}
       </div>
-      <div className="border-t border-border/60 px-2 py-2.5 md:hidden">
-        <div className="mx-auto grid max-w-5xl grid-cols-4 gap-1">
-          {links.map((l) => {
-            const Icon = l.icon;
-            return (
-              <Link
-                key={l.href}
-                href={l.href}
-                scroll
-                onClick={scrollToTopOnNavigate}
-                className={cn(
-                  "inline-flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-2.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent/80",
-                  l.active && "bg-accent text-foreground"
-                )}
-              >
-                <Icon className="h-5 w-5 shrink-0" />
-                <span className="truncate max-w-full">{l.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-    </motion.nav>
+    </>
   );
 }
 

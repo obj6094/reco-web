@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { SubmissionCard, type SubmissionCardData } from "@/components/SubmissionCard";
 import { ArrowLeft, Trophy } from "lucide-react";
 
@@ -181,7 +180,7 @@ export default function PastChallengeDetailPage() {
             ) : submissions.length === 0 ? (
               <div className="text-sm text-muted-foreground">No submissions for this challenge.</div>
             ) : (
-              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 min-w-0 overflow-hidden">
                 {submissions.map((s, index) => {
                   const data: SubmissionCardData = {
                     id: s.id,
@@ -195,15 +194,14 @@ export default function PastChallengeDetailPage() {
                     submitterUsername: s.submitterUsername,
                   };
                   return (
-                    <li key={s.id}>
-                      <div className="flex items-start gap-2">
-                        <Badge variant="secondary" className="mt-1">
-                          #{index + 1}
-                        </Badge>
-                        <div className="flex-1">
-                          <SubmissionCard submission={data} canVote={false} variant="compact" />
-                        </div>
-                      </div>
+                    <li key={s.id} className="min-w-0">
+                      <SubmissionCard
+                        submission={data}
+                        canVote={false}
+                        variant="compact"
+                        rank={index + 1}
+                        className="min-w-0 overflow-hidden"
+                      />
                     </li>
                   );
                 })}

@@ -36,6 +36,8 @@
    variant?: "default" | "compact";
    /** Optional extra className for the outer Card */
    className?: string;
+   /** Optional rank to show at top of card (e.g. 1 for #1) */
+   rank?: number;
  };
 
  export function SubmissionCard({
@@ -45,6 +47,7 @@
    voting = false,
    variant = "default",
    className,
+   rank,
  }: SubmissionCardProps) {
    const [showPlayer, setShowPlayer] = useState(false);
 
@@ -81,6 +84,13 @@
           variant === "compact" && "p-3",
          )}
        >
+        {rank != null ? (
+          <div className="mb-2 flex items-center">
+            <Badge variant="secondary" className="shrink-0">
+              #{rank}
+            </Badge>
+          </div>
+        ) : null}
         <div className="space-y-2.5">
           {/* Top row: cover + title/artist */}
           <div className="flex min-w-0 items-center gap-3">
