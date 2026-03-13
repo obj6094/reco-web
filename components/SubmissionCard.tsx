@@ -133,8 +133,8 @@
             )}
           </div>
 
-          {/* Third row: comment - desktop: 2-line min-height for consistency; mobile: flexible; no comment: smaller ok */}
-          <div className={cn(comment && "sm:min-h-[2.5rem]")}>
+          {/* Third row: comment - desktop: always 2-line min-height; mobile: flexible */}
+          <div className="sm:min-h-[2.5rem]">
             {comment ? (
               <ExpandableText
                 text={comment}
