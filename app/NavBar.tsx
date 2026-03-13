@@ -61,7 +61,7 @@ export function NavBar() {
       icon: MessageCircle,
       active: pathname === "/requests" || pathname?.startsWith("/requests/"),
     },
-    { href: "/profile", label: "Profile", icon: User, active: pathname === "/profile" },
+    { href: "/profile", label: "Profile", icon: User, active: pathname === "/profile" || pathname?.startsWith("/profile/") },
   ];
 
   const tabBar = (
