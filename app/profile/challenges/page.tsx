@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/EmptyState";
+import { formatDateTime } from "@/lib/utils";
 import { ArrowLeft, Trophy } from "lucide-react";
 
 type MySubmission = {
@@ -142,7 +143,7 @@ export default function ProfileChallengesPage() {
                         ) : null}
 
                         <div className="text-xs text-muted-foreground">
-                          {new Date(s.created_at).toLocaleString()}
+                          {formatDateTime(s.created_at)}
                         </div>
                       </CardContent>
                     </Card>

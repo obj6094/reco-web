@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { getDisplayName } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { ArrowLeft } from "lucide-react";
 
 type Item = {
@@ -197,9 +197,8 @@ export default function MyAnswersPage() {
                               @{item.requesterName}
                             </span>
                             {" · "}
-                            {item.mode === "answer" ? "My Reco" : "My Nice Reco"}: {item.trackName} - {item.artistName}
+                            {formatDateTime(item.created_at)}
                           </div>
-                          <div className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString()}</div>
                         </CardContent>
                       </Card>
                     </Link>

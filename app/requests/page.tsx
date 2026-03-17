@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
 import { BestRecosSection } from "@/components/BestRecosSection";
-import { cn } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { getDisplayName } from "@/lib/auth";
 import { ArrowRight, MessageCirclePlus, Send, Inbox, CheckCircle, Music2 } from "lucide-react";
 
@@ -470,7 +470,7 @@ export default function RequestsPage() {
                                   @{req.requesterName}
                                 </span>
                                 {" · "}
-                                {new Date(req.created_at).toLocaleString()}
+                                {formatDateTime(req.created_at)}
                               </CardDescription>
                             </CardHeader>
                             <CardContent className="pt-0">
@@ -541,7 +541,7 @@ export default function RequestsPage() {
                                 <div className="min-w-0 flex-1">
                                   <p className="line-clamp-1 truncate font-semibold leading-relaxed tracking-tight break-words">{req.prompt}</p>
                                   <p className="mt-1 text-xs text-muted-foreground">
-                                    {new Date(req.created_at).toLocaleString()} · {req.answersCount} answer(s)
+                                    {formatDateTime(req.created_at)} · {req.answersCount} answer(s)
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -616,8 +616,6 @@ export default function RequestsPage() {
                                 >
                                   @{entry.requesterName}
                                 </span>
-                                  {" · "}
-                                  {entry.mode === "answer" ? "My Reco" : "My Nice Reco"}: {entry.trackName} - {entry.artistName}
                                 </p>
                               </div>
                             </CardContent>

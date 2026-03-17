@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
 import { ExpandableText } from "@/components/ExpandableText";
-import { cn } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { ArrowLeft, ArrowRight, Crown, Lock, Play, Search, Sparkles, Tag, ThumbsUp } from "lucide-react";
 
 type RequestDetail = {
@@ -488,7 +488,7 @@ export default function RequestDetailPage() {
                         @{request.requesterName}
                       </Link>
                       {" · "}
-                      {new Date(request.created_at).toLocaleString()}
+                      {formatDateTime(request.created_at)}
                     </div>
                   </div>
                   <Badge variant="secondary" className="mt-1 shrink-0">
@@ -774,7 +774,7 @@ export default function RequestDetailPage() {
                             ) : null}
 
                             <div className="text-xs text-muted-foreground">
-                              {new Date(ans.created_at).toLocaleString()}
+                              {formatDateTime(ans.created_at)}
                             </div>
                           </CardContent>
                         </Card>

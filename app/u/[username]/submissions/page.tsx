@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
 import { ExpandableText } from "@/components/ExpandableText";
+import { formatDateTime } from "@/lib/utils";
 import { ArrowLeft, Play, Trophy } from "lucide-react";
 
 type PublicSubmission = {
@@ -256,7 +257,7 @@ export default function PublicSubmissionsPage() {
                         </div>
                       ) : null}
                       <div className="text-xs text-muted-foreground">
-                        {new Date(s.created_at).toLocaleString()}
+                        {formatDateTime(s.created_at)}
                       </div>
                     </CardContent>
                   </Card>

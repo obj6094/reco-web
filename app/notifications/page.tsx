@@ -8,7 +8,7 @@ import { getDisplayName } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Bell } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 
 type Notification = {
   id: string;
@@ -199,7 +199,7 @@ export default function NotificationsPage() {
                       >
                         <div className="text-sm font-medium">{label}</div>
                         <div className="text-xs text-muted-foreground mt-1">
-                          {new Date(n.created_at).toLocaleString()}
+                          {formatDateTime(n.created_at)}
                         </div>
                       </Link>
                     </li>
