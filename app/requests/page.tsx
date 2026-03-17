@@ -12,6 +12,7 @@ import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
 import { BestRecosSection } from "@/components/BestRecosSection";
 import { cn } from "@/lib/utils";
+import { getDisplayName } from "@/lib/auth";
 import { ArrowRight, MessageCirclePlus, Send, Inbox, CheckCircle, Music2 } from "lucide-react";
 
 type QueueRequest = {
@@ -19,6 +20,8 @@ type QueueRequest = {
   prompt: string;
   created_at: string;
   answersCount: number;
+  requesterName: string;
+  requesterSlug: string;
 };
 
 type MyRequest = {
@@ -37,6 +40,8 @@ type MyAnswerEntry = {
   artistName: string;
   mode: "answer" | "nice_reco";
   isSelected?: boolean;
+  requesterName: string;
+  requesterSlug: string;
 };
 
 export default function RequestsPage() {
@@ -61,18 +66,16 @@ export default function RequestsPage() {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 
-    const { data: answeredRows } = await supabase
-      .from("qna_answers")
-      .select("request_id, created_at")
-      .eq("responder_id", uid);
+    const [answeredRes, ratingsRes, reqRes] = await Promise.all([
+      supabase.from("qna_answers").select("request_id, created_at").eq("responder_id", uid),
+      supabase.from("qna_ratings").select("answer_id, created_at").eq("rater_id", uid).eq("score", 1),
+      supabase.from("qna_requests").select("id, prompt, created_at, requester_id").is("best_answer_id", null).neq("requester_id", uid).order("created_at", { ascending: true }).limit(50),
+    ]);
+
+    const answeredRows = answeredRes.data;
+    const myRatings = ratingsRes.data;
     const answeredIds = new Set((answeredRows ?? []).map((r: any) => r.request_id));
     const answeredToday = (answeredRows ?? []).filter((r: any) => r.created_at >= startOfToday).length;
-
-    const { data: myRatings } = await supabase
-      .from("qna_ratings")
-      .select("answer_id, created_at")
-      .eq("rater_id", uid)
-      .eq("score", 1);
     const ratedAnswerIds = (myRatings ?? []).map((r: any) => r.answer_id).filter(Boolean);
     const niceRecosToday = (myRatings ?? []).filter((r: any) => r.created_at >= startOfToday).length;
     const niceRecoHandledRequestIds = new Set<string>();
@@ -89,13 +92,8 @@ export default function RequestsPage() {
     const usedToday = answeredToday + niceRecosToday;
     const slotsRemaining = Math.max(0, 3 - usedToday);
 
-    const { data: reqData, error } = await supabase
-      .from("qna_requests")
-      .select("id, prompt, created_at")
-      .is("best_answer_id", null)
-      .neq("requester_id", uid)
-      .order("created_at", { ascending: true })
-      .limit(50);
+    const reqData = reqRes.data;
+    const error = reqRes.error;
     if (error) {
       setStatus("Failed to load requests: " + error.message);
       setLoadingQueue(false);
@@ -108,6 +106,15 @@ export default function RequestsPage() {
     const toShow = unanswered.slice(0, slotsRemaining);
     const ids = toShow.map((r: any) => r.id);
     let countByRequest: Record<string, number> = {};
+    const requesterIds = [...new Set(toShow.map((r: any) => r.requester_id).filter(Boolean))];
+    let requesterMap: Record<string, { name: string; slug: string }> = {};
+    if (requesterIds.length) {
+      const { data: profiles } = await supabase.from("profiles").select("id, nickname, username").in("id", requesterIds);
+      (profiles ?? []).forEach((p: any) => {
+        const slug = ((p.nickname ?? p.username ?? "user") as string).trim() || "user";
+        requesterMap[p.id as string] = { name: getDisplayName(p.nickname, p.username), slug };
+      });
+    }
     if (ids.length > 0) {
       const { data: ansData } = await supabase
         .from("qna_answers")
@@ -117,12 +124,17 @@ export default function RequestsPage() {
         countByRequest[r.request_id] = (countByRequest[r.request_id] ?? 0) + 1;
       });
     }
-    const filtered = toShow.map((r: any) => ({
-      id: r.id,
-      prompt: r.prompt,
-      created_at: r.created_at,
-      answersCount: countByRequest[r.id] ?? 0,
-    }));
+    const filtered = toShow.map((r: any) => {
+      const req = requesterMap[r.requester_id];
+      return {
+        id: r.id,
+        prompt: r.prompt,
+        created_at: r.created_at,
+        answersCount: countByRequest[r.id] ?? 0,
+        requesterName: req?.name ?? "user",
+        requesterSlug: req?.slug ?? "user",
+      };
+    });
     setQueueForYou(filtered);
     setLoadingQueue(false);
   }, []);
@@ -161,18 +173,13 @@ export default function RequestsPage() {
   }, []);
 
   const loadMyAnswers = useCallback(async (uid: string) => {
-    const { data: ansRows, error: ansError } = await supabase
-      .from("qna_answers")
-      .select("id, request_id, created_at, spotify_track_name, spotify_artist_name")
-      .eq("responder_id", uid)
-      .order("created_at", { ascending: false });
-
-    const { data: ratingRows } = await supabase
-      .from("qna_ratings")
-      .select("answer_id, created_at")
-      .eq("rater_id", uid)
-      .eq("score", 1)
-      .order("created_at", { ascending: false });
+    const [ansRes, ratingRes] = await Promise.all([
+      supabase.from("qna_answers").select("id, request_id, created_at, spotify_track_name, spotify_artist_name").eq("responder_id", uid).order("created_at", { ascending: false }),
+      supabase.from("qna_ratings").select("answer_id, created_at").eq("rater_id", uid).eq("score", 1).order("created_at", { ascending: false }),
+    ]);
+    const ansRows = ansRes.data;
+    const ansError = ansRes.error;
+    const ratingRows = ratingRes.data;
 
     const ratedAnswerIds = [...new Set((ratingRows ?? []).map((r: any) => r.answer_id).filter(Boolean))] as string[];
     let ratedAnswerMap: Record<string, { request_id: string; trackName: string; artistName: string }> = {};
@@ -223,12 +230,21 @@ export default function RequestsPage() {
     const reqIds = [...new Set(mergedRows.map((r) => r.request_id))];
     const { data: reqData } = await supabase
       .from("qna_requests")
-      .select("id, prompt, created_at, best_answer_id")
+      .select("id, prompt, created_at, best_answer_id, requester_id")
       .in("id", reqIds);
-    const byId: Record<string, { prompt: string; created_at: string; best_answer_id: string | null }> = {};
+    const byId: Record<string, { prompt: string; created_at: string; best_answer_id: string | null; requester_id: string }> = {};
     (reqData ?? []).forEach((r: any) => {
-      byId[r.id] = { prompt: r.prompt, created_at: r.created_at, best_answer_id: r.best_answer_id ?? null };
+      byId[r.id] = { prompt: r.prompt, created_at: r.created_at, best_answer_id: r.best_answer_id ?? null, requester_id: r.requester_id };
     });
+    const requesterIds = [...new Set(Object.values(byId).map((r) => r.requester_id).filter(Boolean))];
+    let requesterMap: Record<string, { name: string; slug: string }> = {};
+    if (requesterIds.length) {
+      const { data: profiles } = await supabase.from("profiles").select("id, nickname, username").in("id", requesterIds);
+      (profiles ?? []).forEach((p: any) => {
+        const slug = ((p.nickname ?? p.username ?? "user") as string).trim() || "user";
+        requesterMap[p.id as string] = { name: getDisplayName(p.nickname, p.username), slug };
+      });
+    }
     const seen = new Set<string>();
     setMyAnswers(
       mergedRows
@@ -240,6 +256,7 @@ export default function RequestsPage() {
         })
         .map((row) => {
           const req = byId[row.request_id];
+          const requester = req ? requesterMap[req.requester_id] : null;
           const isSelected = row.mode === "answer" && row.answer_id && req?.best_answer_id === row.answer_id;
           return {
             request_id: row.request_id,
@@ -249,6 +266,8 @@ export default function RequestsPage() {
             artistName: row.artistName,
             mode: row.mode,
             isSelected: !!isSelected,
+            requesterName: requester?.name ?? "user",
+            requesterSlug: requester?.slug ?? "user",
           };
         })
     );
@@ -271,9 +290,7 @@ export default function RequestsPage() {
         return;
       }
       setLoadingMine(true);
-      await loadQueue(uid);
-      await loadMyRequests(uid);
-      await loadMyAnswers(uid);
+      await Promise.all([loadQueue(uid), loadMyRequests(uid), loadMyAnswers(uid)]);
       setLoadingMine(false);
     }
     boot();
@@ -438,6 +455,21 @@ export default function RequestsPage() {
                                 {req.prompt}
                               </CardTitle>
                               <CardDescription className="text-xs">
+                                by{" "}
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  className="text-primary hover:underline cursor-pointer"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    router.push(`/u/${encodeURIComponent(req.requesterSlug)}`);
+                                  }}
+                                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), router.push(`/u/${encodeURIComponent(req.requesterSlug)}`))}
+                                >
+                                  @{req.requesterName}
+                                </span>
+                                {" · "}
                                 {new Date(req.created_at).toLocaleString()}
                               </CardDescription>
                             </CardHeader>
@@ -570,6 +602,21 @@ export default function RequestsPage() {
                               <div className="min-w-0 flex-1">
                                 <p className="line-clamp-1 truncate font-semibold leading-relaxed tracking-tight break-words">{entry.prompt}</p>
                                 <p className="mt-1 text-xs text-muted-foreground">
+                                  by{" "}
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  className="text-primary hover:underline cursor-pointer"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    router.push(`/u/${encodeURIComponent(entry.requesterSlug)}`);
+                                  }}
+                                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), router.push(`/u/${encodeURIComponent(entry.requesterSlug)}`))}
+                                >
+                                  @{entry.requesterName}
+                                </span>
+                                  {" · "}
                                   {entry.mode === "answer" ? "My Reco" : "My Nice Reco"}: {entry.trackName} - {entry.artistName}
                                 </p>
                               </div>

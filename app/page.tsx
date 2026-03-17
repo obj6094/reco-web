@@ -27,6 +27,8 @@ type TrendingReco = {
   artistName: string;
   albumImage: string | null;
   voteCount: number;
+  submitterName: string;
+  submitterSlug: string;
 };
 
 type TopCurator = {
@@ -78,36 +80,26 @@ export default function HomePage() {
       setLoadingChallenges(true);
       const now = new Date().toISOString();
 
-      const { data: currentRow, error: currentError } = await supabase
-        .from("weekly_challenges")
-        .select("*")
-        .lte("starts_at", now)
-        .gt("ends_at", now)
-        .order("starts_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const [currentRes, pastRes] = await Promise.all([
+        supabase.from("weekly_challenges").select("*").lte("starts_at", now).gt("ends_at", now).order("starts_at", { ascending: false }).limit(1).maybeSingle(),
+        supabase.from("weekly_challenges").select("*").lt("ends_at", now).order("starts_at", { ascending: false }).limit(10),
+      ]);
 
+      const currentError = currentRes.error;
+      const pastError = pastRes.error;
       if (currentError) {
         setStatus("Failed to load challenge data: " + currentError.message);
         setLoadingChallenges(false);
         return;
       }
-
-      const { data: pastRows, error: pastError } = await supabase
-        .from("weekly_challenges")
-        .select("*")
-        .lt("ends_at", now)
-        .order("starts_at", { ascending: false })
-        .limit(10);
-
       if (pastError) {
         setStatus("Failed to load past challenges: " + pastError.message);
         setLoadingChallenges(false);
         return;
       }
 
-      setCurrent((currentRow as WeeklyChallenge | null) ?? null);
-      setPast((pastRows as WeeklyChallenge[] | null) ?? []);
+      setCurrent((currentRes.data as WeeklyChallenge | null) ?? null);
+      setPast((pastRes.data as WeeklyChallenge[] | null) ?? []);
 
       setLoadingChallenges(false);
     }
@@ -192,7 +184,7 @@ export default function HomePage() {
       const { data, error } = await supabase
         .from("challenge_submissions")
         .select(
-          "id, spotify_track_name, spotify_artist_name, spotify_album_image_url, created_at, challenge_votes(id)"
+          "id, user_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, created_at, challenge_votes(id)"
         )
         .eq("challenge_id", currentChallengeId);
 
@@ -201,9 +193,10 @@ export default function HomePage() {
         return;
       }
 
-      const mapped: TrendingReco[] =
+      const mapped: { id: string; user_id: string; trackName: string; artistName: string; albumImage: string | null; voteCount: number }[] =
         data?.map((row: any) => ({
           id: row.id,
+          user_id: row.user_id,
           trackName: row.spotify_track_name,
           artistName: row.spotify_artist_name,
           albumImage: row.spotify_album_image_url,
@@ -211,7 +204,35 @@ export default function HomePage() {
         })) ?? [];
 
       mapped.sort((a, b) => b.voteCount - a.voteCount);
-      setTrending(mapped.slice(0, 3));
+      const top3 = mapped.slice(0, 3);
+      const userIds = [...new Set(top3.map((r) => r.user_id).filter(Boolean))];
+      let profileMap: Record<string, { name: string; slug: string }> = {};
+      if (userIds.length) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, nickname, username")
+          .in("id", userIds);
+        (profiles ?? []).forEach((p: any) => {
+          const slug = ((p.nickname ?? p.username ?? "user") as string).trim() || "user";
+          profileMap[p.id as string] = {
+            name: getDisplayName(p.nickname, p.username),
+            slug,
+          };
+        });
+      }
+      const trendingMapped: TrendingReco[] = top3.map((r) => {
+        const profile = profileMap[r.user_id];
+        return {
+          id: r.id,
+          trackName: r.trackName,
+          artistName: r.artistName,
+          albumImage: r.albumImage,
+          voteCount: r.voteCount,
+          submitterName: profile?.name ?? "user",
+          submitterSlug: profile?.slug ?? "user",
+        };
+      });
+      setTrending(trendingMapped);
       setLoadingTrending(false);
     }
 
@@ -535,7 +556,15 @@ export default function HomePage() {
                         >
                           <div className="flex items-center justify-between gap-2">
                             <Badge variant="secondary">#{index + 1}</Badge>
-                            <Badge variant="outline">{t.voteCount} votes</Badge>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">
+                                by{" "}
+                                <Link href={`/u/${encodeURIComponent(t.submitterSlug)}`} className="text-primary hover:underline">
+                                  @{t.submitterName}
+                                </Link>
+                              </span>
+                              <Badge variant="outline">{t.voteCount} votes</Badge>
+                            </div>
                           </div>
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-xl border border-border bg-card">

@@ -108,34 +108,54 @@ export default function PublicProfilePage() {
       setUserId(uid);
       setNickname(getDisplayName(profile.nickname as string | null, profile.username as string | null));
 
-      // Load challenge submissions for this user (first 4 for preview)
-      const { count: totalSubmissionsCount } = await supabase
-        .from("challenge_submissions")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", uid);
+      // Load challenge submissions and QnA answers in parallel
+      const [subCountRes, subRowsRes, ansCountRes, ansRowsRes] = await Promise.all([
+        supabase.from("challenge_submissions").select("id", { count: "exact", head: true }).eq("user_id", uid),
+        supabase.from("challenge_submissions").select("id, challenge_id, spotify_track_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at, challenge_votes(id)").eq("user_id", uid).order("created_at", { ascending: false }).limit(4),
+        supabase.from("qna_answers").select("id", { count: "exact", head: true }).eq("responder_id", uid),
+        supabase.from("qna_answers").select("id, request_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, spotify_track_id, comment, created_at").eq("responder_id", uid).order("created_at", { ascending: false }).limit(5),
+      ]);
 
-      const { data: subRows, error: subError } = await supabase
-        .from("challenge_submissions")
-        .select(
-          "id, challenge_id, spotify_track_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at, challenge_votes(id)"
-        )
-        .eq("user_id", uid)
-        .order("created_at", { ascending: false })
-        .limit(4);
+      const totalSubmissionsCount = subCountRes.count;
+      const subRows = subRowsRes.data;
+      const subError = subRowsRes.error;
+      const totalAnswersCount = ansCountRes.count;
+      const ansRows = ansRowsRes.data;
+      const ansError = ansRowsRes.error;
 
       if (subError) {
         setStatus("Failed to load submissions: " + subError.message);
       }
+      if (ansError) {
+        setStatus("Failed to load QnA answers: " + ansError.message);
+      }
 
       const challengeIds = [...new Set((subRows ?? []).map((r: any) => r.challenge_id).filter(Boolean))];
+      const requestIds = [...new Set((ansRows ?? []).map((r: any) => r.request_id).filter(Boolean))];
+
+      const [chalRowsRes, reqRowsRes] = await Promise.all([
+        challengeIds.length ? supabase.from("weekly_challenges").select("id, prompt").in("id", challengeIds) : Promise.resolve({ data: [] as { id: string; prompt: string }[] }),
+        requestIds.length ? supabase.from("qna_requests").select("id, prompt, requester_id").in("id", requestIds) : Promise.resolve({ data: [] as { id: string; prompt: string; requester_id: string }[] }),
+      ]);
+
+      const chalRows = chalRowsRes.data ?? [];
+      const reqRows = reqRowsRes.data ?? [];
       const promptByChallengeId: Record<string, string> = {};
-      if (challengeIds.length) {
-        const { data: chalRows } = await supabase
-          .from("weekly_challenges")
-          .select("id, prompt")
-          .in("id", challengeIds);
-        (chalRows ?? []).forEach((r: any) => {
-          promptByChallengeId[r.id as string] = (r.prompt as string) ?? "";
+      chalRows.forEach((r: any) => {
+        promptByChallengeId[r.id as string] = (r.prompt as string) ?? "";
+      });
+      const reqMap: Record<string, { prompt: string; requester_id: string }> = {};
+      reqRows.forEach((r: any) => {
+        reqMap[r.id as string] = { prompt: (r.prompt as string) ?? "", requester_id: r.requester_id as string };
+      });
+
+      const requesterIds = [...new Set(Object.values(reqMap).map((r) => r.requester_id).filter(Boolean))];
+      let requesterProfileMap: Record<string, { name: string; slug: string }> = {};
+      if (requesterIds.length) {
+        const { data: profiles } = await supabase.from("profiles").select("id, nickname, username").in("id", requesterIds);
+        (profiles ?? []).forEach((p: any) => {
+          const slug = ((p.nickname ?? p.username ?? "user") as string).trim() || "user";
+          requesterProfileMap[p.id as string] = { name: getDisplayName(p.nickname, p.username), slug };
         });
       }
 
@@ -155,51 +175,6 @@ export default function PublicProfilePage() {
 
       setSubmissions(mappedSubs);
       setTotalSubmissionsCount(totalSubmissionsCount ?? 0);
-
-      // Load QnA answers for this user (first 5 for preview, plus total count)
-      const { count: totalAnswersCount } = await supabase
-        .from("qna_answers")
-        .select("id", { count: "exact", head: true })
-        .eq("responder_id", uid);
-
-      const { data: ansRows, error: ansError } = await supabase
-        .from("qna_answers")
-        .select("id, request_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, spotify_track_id, comment, created_at")
-        .eq("responder_id", uid)
-        .order("created_at", { ascending: false })
-        .limit(5);
-
-      if (ansError) {
-        setStatus("Failed to load QnA answers: " + ansError.message);
-      }
-
-      const requestIds = [...new Set((ansRows ?? []).map((r: any) => r.request_id).filter(Boolean))];
-      const reqMap: Record<string, { prompt: string; requester_id: string }> = {};
-      if (requestIds.length) {
-        const { data: reqRows } = await supabase
-          .from("qna_requests")
-          .select("id, prompt, requester_id")
-          .in("id", requestIds);
-        (reqRows ?? []).forEach((r: any) => {
-          reqMap[r.id as string] = { prompt: (r.prompt as string) ?? "", requester_id: r.requester_id as string };
-        });
-      }
-
-      const requesterIds = [...new Set(Object.values(reqMap).map((r) => r.requester_id).filter(Boolean))];
-      const requesterProfileMap: Record<string, { name: string; slug: string }> = {};
-      if (requesterIds.length) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, nickname, username")
-          .in("id", requesterIds);
-        (profiles ?? []).forEach((p: any) => {
-          const slug = ((p.nickname ?? p.username ?? "user") as string).trim() || "user";
-          requesterProfileMap[p.id as string] = {
-            name: getDisplayName(p.nickname, p.username),
-            slug,
-          };
-        });
-      }
 
       const mappedAns: PublicAnswer[] =
         ansRows?.map((row: any) => {
@@ -223,44 +198,7 @@ export default function PublicProfilePage() {
       setAnswers(mappedAns);
       setTotalAnswersCount(totalAnswersCount ?? 0);
 
-      // Calculate Reco Score components
-      let bestRecoCount = 0;
-      let votesTotal = 0;
-
-      if (mappedAns.length) {
-        const answerIds = mappedAns.map((a) => a.id);
-        const { data: bestReqRows, error: bestReqError } = await supabase
-          .from("qna_requests")
-          .select("best_answer_id")
-          .in("best_answer_id", answerIds);
-
-        if (!bestReqError) {
-          const uniqueBest = new Set(
-            (bestReqRows ?? [])
-              .map((r: any) => r.best_answer_id)
-              .filter((id: string | null) => !!id)
-          );
-          bestRecoCount = uniqueBest.size;
-        }
-      }
-
-      if (mappedSubs.length) {
-        const submissionIds = mappedSubs.map((s) => s.id);
-        const { count, error: voteError } = await supabase
-          .from("challenge_votes")
-          .select("id", { count: "exact", head: true })
-          .in("submission_id", submissionIds);
-
-        if (!voteError) {
-          votesTotal = count ?? 0;
-        }
-      }
-
-      setBestCount(bestRecoCount);
-      setVoteCountTotal(votesTotal);
-      setRecoScore(bestRecoCount + votesTotal);
-
-      // Songs recommended this week (challenge submissions + qna answers)
+      // Calculate Reco Score components and songs this week in parallel
       const now = new Date();
       const day = now.getDay();
       const daysToMonday = day === 0 ? 6 : day - 1;
@@ -268,17 +206,30 @@ export default function PublicProfilePage() {
       monday.setDate(now.getDate() - daysToMonday);
       monday.setHours(0, 0, 0, 0);
       const startOfWeek = monday.toISOString();
-      const { count: ansCount } = await supabase
-        .from("qna_answers")
-        .select("id", { count: "exact", head: true })
-        .eq("responder_id", uid)
-        .gte("created_at", startOfWeek);
-      const { count: subCount } = await supabase
-        .from("challenge_submissions")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", uid)
-        .gte("created_at", startOfWeek);
-      setSongsThisWeek((ansCount ?? 0) + (subCount ?? 0));
+
+      const answerIds = mappedAns.map((a) => a.id);
+      const submissionIds = mappedSubs.map((s) => s.id);
+
+      const [bestReqRes, voteRes, ansWeekRes, subWeekRes] = await Promise.all([
+        answerIds.length ? supabase.from("qna_requests").select("best_answer_id").in("best_answer_id", answerIds) : Promise.resolve({ data: [] as { best_answer_id: string | null }[], error: null }),
+        submissionIds.length ? supabase.from("challenge_votes").select("id", { count: "exact", head: true }).in("submission_id", submissionIds) : Promise.resolve({ count: 0, error: null }),
+        supabase.from("qna_answers").select("id", { count: "exact", head: true }).eq("responder_id", uid).gte("created_at", startOfWeek),
+        supabase.from("challenge_submissions").select("id", { count: "exact", head: true }).eq("user_id", uid).gte("created_at", startOfWeek),
+      ]);
+
+      let bestRecoCount = 0;
+      if (answerIds.length && !bestReqRes.error) {
+        const uniqueBest = new Set(
+          (bestReqRes.data ?? []).map((r: any) => r.best_answer_id).filter((id: string | null) => !!id)
+        );
+        bestRecoCount = uniqueBest.size;
+      }
+      const votesTotal = submissionIds.length && !voteRes.error ? (voteRes.count ?? 0) : 0;
+
+      setBestCount(bestRecoCount);
+      setVoteCountTotal(votesTotal);
+      setRecoScore(bestRecoCount + votesTotal);
+      setSongsThisWeek((ansWeekRes.count ?? 0) + (subWeekRes.count ?? 0));
 
       setLoading(false);
     }

@@ -20,6 +20,8 @@ type RequestDetail = {
   id: string;
   prompt: string;
   requester_id: string;
+  requesterName: string;
+  requesterSlug: string;
   created_at: string;
   best_answer_id: string | null;
 };
@@ -86,11 +88,16 @@ export default function RequestDetailPage() {
       setLoading(true);
       setStatus("");
 
-      const { data: reqData, error: reqError } = await supabase
-        .from("qna_requests")
-        .select("id, prompt, requester_id, created_at, best_answer_id")
-        .eq("id", requestId)
-        .single();
+      const [reqRes, claimsRes, answersRes] = await Promise.all([
+        supabase.from("qna_requests").select("id, prompt, requester_id, created_at, best_answer_id").eq("id", requestId).single(),
+        supabase.from("qna_claims").select("id, claimer_id").eq("request_id", requestId),
+        supabase.from("qna_answers").select("id, responder_id, spotify_track_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at").eq("request_id", requestId).order("created_at", { ascending: false }),
+      ]);
+
+      const reqData = reqRes.data;
+      const reqError = reqRes.error;
+      const claimsData = claimsRes.data;
+      const answersData = answersRes.data;
 
       if (reqError || !reqData) {
         setStatus("Failed to load request: " + (reqError?.message ?? "Not found"));
@@ -101,27 +108,33 @@ export default function RequestDetailPage() {
         return;
       }
 
+      let requesterName = "user";
+      let requesterSlug = "user";
+      if (reqData.requester_id) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("nickname, username")
+          .eq("id", reqData.requester_id)
+          .maybeSingle();
+        if (profile) {
+          requesterName = getDisplayName(profile.nickname, profile.username);
+          requesterSlug = ((profile.nickname ?? profile.username ?? "user") as string).trim() || "user";
+        }
+      }
+
       setRequest({
         id: reqData.id,
         prompt: reqData.prompt,
         requester_id: reqData.requester_id,
+        requesterName,
+        requesterSlug,
         created_at: reqData.created_at,
         best_answer_id: reqData.best_answer_id ?? null,
       });
 
-      const { data: claimsData } = await supabase
-        .from("qna_claims")
-        .select("id, claimer_id")
-        .eq("request_id", requestId);
       setClaims(
         (claimsData ?? []).map((c: any) => ({ id: c.id, claimer_id: c.claimer_id }))
       );
-
-      const { data: answersData } = await supabase
-        .from("qna_answers")
-        .select("id, responder_id, spotify_track_id, spotify_track_name, spotify_artist_name, spotify_album_image_url, comment, created_at")
-        .eq("request_id", requestId)
-        .order("created_at", { ascending: false });
       const mappedAnswers =
         (answersData ?? []).map((a: any) => ({
           id: a.id,
@@ -146,11 +159,14 @@ export default function RequestDetailPage() {
       }
 
       const answerIds = mappedAnswers.map((a) => a.id);
-      const { data: ratingRows } = await supabase
-        .from("qna_ratings")
-        .select("id, answer_id, rater_id, score")
-        .in("answer_id", answerIds)
-        .eq("score", 1);
+      const responderIds = [...new Set(mappedAnswers.map((a) => a.responder_id).filter(Boolean))] as string[];
+
+      const [ratingRes, profilesRes] = await Promise.all([
+        supabase.from("qna_ratings").select("id, answer_id, rater_id, score").in("answer_id", answerIds).eq("score", 1),
+        supabase.from("profiles").select("id, nickname, username").in("id", responderIds),
+      ]);
+      const ratingRows = ratingRes.data;
+      const profiles = profilesRes.data ?? [];
 
       const countByAnswer: Record<string, number> = {};
       const likedByMeSet = new Set<string>();
@@ -160,14 +176,9 @@ export default function RequestDetailPage() {
       });
       setHandledByNiceReco(likedByMeSet.size > 0);
 
-      const responderIds = [...new Set(mappedAnswers.map((a) => a.responder_id).filter(Boolean))] as string[];
       const responderMap: Record<string, { name: string; slug: string }> = {};
-      if (responderIds.length) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, nickname, username")
-          .in("id", responderIds);
-        (profiles ?? []).forEach((p: any) => {
+      if (profiles.length) {
+        profiles.forEach((p: any) => {
           const slug = ((p.nickname ?? p.username ?? "user") as string).trim() || "user";
           responderMap[p.id as string] = {
             name: getDisplayName(p.nickname, p.username),
@@ -472,6 +483,11 @@ export default function RequestDetailPage() {
                       {request.prompt}
                     </CardDescription>
                     <div className="text-xs text-muted-foreground">
+                      by{" "}
+                      <Link href={`/u/${encodeURIComponent(request.requesterSlug)}`} className="text-primary hover:underline">
+                        @{request.requesterName}
+                      </Link>
+                      {" · "}
                       {new Date(request.created_at).toLocaleString()}
                     </div>
                   </div>

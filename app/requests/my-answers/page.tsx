@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { getDisplayName } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,8 @@ type Item = {
   artistName: string;
   mode: "answer" | "nice_reco";
   isSelected?: boolean;
+  requesterName: string;
+  requesterSlug: string;
 };
 
 export default function MyAnswersPage() {
@@ -96,13 +99,23 @@ export default function MyAnswersPage() {
 
       const { data: reqs } = await supabase
         .from("qna_requests")
-        .select("id, prompt, best_answer_id")
+        .select("id, prompt, best_answer_id, requester_id")
         .in("id", reqIds);
 
-      const byId: Record<string, { prompt: string; best_answer_id: string | null }> = {};
+      const byId: Record<string, { prompt: string; best_answer_id: string | null; requester_id: string }> = {};
       (reqs ?? []).forEach((r: any) => {
-        byId[r.id] = { prompt: r.prompt, best_answer_id: r.best_answer_id ?? null };
+        byId[r.id] = { prompt: r.prompt, best_answer_id: r.best_answer_id ?? null, requester_id: r.requester_id };
       });
+
+      const requesterIds = [...new Set(Object.values(byId).map((r) => r.requester_id).filter(Boolean))];
+      let requesterMap: Record<string, { name: string; slug: string }> = {};
+      if (requesterIds.length) {
+        const { data: profiles } = await supabase.from("profiles").select("id, nickname, username").in("id", requesterIds);
+        (profiles ?? []).forEach((p: any) => {
+          const slug = ((p.nickname ?? p.username ?? "user") as string).trim() || "user";
+          requesterMap[p.id as string] = { name: getDisplayName(p.nickname, p.username), slug };
+        });
+      }
 
       const seen = new Set<string>();
       const mapped: Item[] = mergedRows
@@ -114,6 +127,7 @@ export default function MyAnswersPage() {
         })
         .map((row) => {
           const req = byId[row.request_id];
+          const requester = req ? requesterMap[req.requester_id] : null;
           const isSelected = row.mode === "answer" && row.answer_id && req?.best_answer_id === row.answer_id;
           return {
             request_id: row.request_id,
@@ -123,6 +137,8 @@ export default function MyAnswersPage() {
             artistName: row.artistName,
             mode: row.mode,
             isSelected: !!isSelected,
+            requesterName: requester?.name ?? "user",
+            requesterSlug: requester?.slug ?? "user",
           };
         });
 
@@ -166,6 +182,21 @@ export default function MyAnswersPage() {
                         <CardContent className="py-3">
                           <div className="line-clamp-1 truncate text-[15px] font-semibold leading-relaxed tracking-tight">{item.prompt}</div>
                           <div className="mt-1 text-xs text-muted-foreground">
+                            by{" "}
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              className="text-primary hover:underline cursor-pointer"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                router.push(`/u/${encodeURIComponent(item.requesterSlug)}`);
+                              }}
+                              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), router.push(`/u/${encodeURIComponent(item.requesterSlug)}`))}
+                            >
+                              @{item.requesterName}
+                            </span>
+                            {" · "}
                             {item.mode === "answer" ? "My Reco" : "My Nice Reco"}: {item.trackName} - {item.artistName}
                           </div>
                           <div className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString()}</div>
