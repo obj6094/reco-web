@@ -38,6 +38,7 @@ export default function ProfilePage() {
   const [authChecked, setAuthChecked] = useState(false);
 
   const [recoScore, setRecoScore] = useState<number | null>(null);
+  const [recoSuccessRate, setRecoSuccessRate] = useState<number | null>(null);
   const [submissions, setSubmissions] = useState<MySubmission[]>([]);
 
   const [status, setStatus] = useState("");
@@ -117,6 +118,9 @@ export default function ProfilePage() {
         setStatus("Failed to load your QnA data: " + answerRowsError.message);
       }
       const answerIds = (answerRows ?? []).map((a: any) => a.id);
+      if (answerIds.length === 0) {
+        setRecoSuccessRate(0);
+      }
       if (answerIds.length) {
         const { data: bestReqRows, error: bestReqError } = await supabase
           .from("qna_requests")
@@ -132,6 +136,8 @@ export default function ProfilePage() {
               .filter((id: string | null) => !!id)
           );
           bestRecoCount = bestAnswerIds.size;
+          const totalAnswers = (answerRows ?? []).length;
+          setRecoSuccessRate(totalAnswers > 0 ? Math.round((bestAnswerIds.size / totalAnswers) * 100) : 0);
         }
       }
 
@@ -307,8 +313,30 @@ export default function ProfilePage() {
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, delay: 0.02 }}
+          >
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Star className="h-4 w-4 text-primary" />
+                  Your reco success rate
+                </CardTitle>
+                <CardDescription>
+                  Request answers selected as Best Reco ÷ total answers
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-extrabold tracking-tight text-primary">
+                  {recoSuccessRate ?? (loading ? "…" : "0")}%
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, delay: 0.03 }}
-            className="md:col-span-2"
           >
             <Card className="h-full border-primary/40 bg-primary/5">
               <CardHeader>

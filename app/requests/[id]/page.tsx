@@ -201,18 +201,16 @@ export default function RequestDetailPage() {
       const uid = userData.user?.id ?? null;
       setUserId(uid);
       setAuthChecked(true);
-      if (!uid) {
-        router.replace("/login");
-        return;
-      }
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("username")
-        .eq("id", uid)
-        .maybeSingle();
-      if (!profile?.username) {
-        router.replace("/setup-account");
-        return;
+      if (uid) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("id", uid)
+          .maybeSingle();
+        if (!profile?.username) {
+          router.replace("/setup-account");
+          return;
+        }
       }
       if (!requestId) return;
       await loadAll();
@@ -440,21 +438,6 @@ export default function RequestDetailPage() {
     );
   }
 
-  if (!userId) {
-    return (
-      <main className="min-h-[calc(100vh-56px)] bg-background px-4 py-16 text-foreground">
-        <div className="mx-auto max-w-md">
-          <Card>
-            <CardHeader>
-              <CardTitle>Redirecting</CardTitle>
-              <CardDescription>Sending you to the login page…</CardDescription>
-            </CardHeader>
-          </Card>
-        </div>
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-[calc(100dvh-120px)] bg-background px-3 py-6 text-foreground sm:px-4 sm:py-8 md:py-10">
       <div className="mx-auto w-full max-w-3xl space-y-5 sm:space-y-6">
@@ -479,8 +462,8 @@ export default function RequestDetailPage() {
               </>
             ) : (
               <>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1 space-y-1">
                     <CardTitle className="flex items-center gap-2">
                       <Sparkles className="h-4 w-4 text-primary" />
                       QnA request
@@ -492,7 +475,7 @@ export default function RequestDetailPage() {
                       {new Date(request.created_at).toLocaleString()}
                     </div>
                   </div>
-                  <Badge variant="secondary" className="mt-1">
+                  <Badge variant="secondary" className="mt-1 shrink-0">
                     Claims {claimsCount}
                   </Badge>
                 </div>
@@ -718,30 +701,36 @@ export default function RequestDetailPage() {
                                   {expandedPlayAnswerId === ans.id ? "Hide" : "Play"}
                                 </Button>
                               ) : null}
-                              <Button
-                                variant={ans.likedByMe ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => handleNiceReco(ans.id)}
-                                className={cn(
-                                  "px-3 py-1.5 text-xs",
-                                  ans.likedByMe && "bg-blue-600 text-white hover:bg-blue-500",
-                                )}
-                                disabled={
-                                  !!niceRecoSubmittingId ||
-                                  ans.likedByMe ||
-                                  handledByNiceReco ||
-                                  userId === request.requester_id ||
-                                  answers.some((a) => a.responder_id === userId)
-                                }
-                              >
-                                <ThumbsUp className="mr-1 h-3.5 w-3.5" />
-                                {ans.likedByMe
-                                  ? "Liked"
-                                  : niceRecoSubmittingId === ans.id
-                                  ? "Saving..."
-                                  : "Nice Reco"}{" "}
-                                ({ans.niceRecoCount})
-                              </Button>
+                              {userId ? (
+                                <Button
+                                  variant={ans.likedByMe ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => handleNiceReco(ans.id)}
+                                  className={cn(
+                                    "px-3 py-1.5 text-xs",
+                                    ans.likedByMe && "bg-blue-600 text-white hover:bg-blue-500",
+                                  )}
+                                  disabled={
+                                    !!niceRecoSubmittingId ||
+                                    ans.likedByMe ||
+                                    handledByNiceReco ||
+                                    userId === request.requester_id ||
+                                    answers.some((a) => a.responder_id === userId)
+                                  }
+                                >
+                                  <ThumbsUp className="mr-1 h-3.5 w-3.5" />
+                                  {ans.likedByMe
+                                    ? "Liked"
+                                    : niceRecoSubmittingId === ans.id
+                                    ? "Saving..."
+                                    : "Nice Reco"}{" "}
+                                  ({ans.niceRecoCount})
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">
+                                  Nice Reco ({ans.niceRecoCount})
+                                </span>
+                              )}
                               {userId === request.requester_id && !isBest ? (
                                 <Button
                                   variant="outline"

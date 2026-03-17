@@ -38,6 +38,17 @@ Open `http://localhost:3000`.
   - `qna_claims`
   - `qna_answers`
   - `qna_ratings`
+  - `notifications` (run migrations in `supabase/migrations/`)
+
+### Notifications setup
+
+Run the Supabase migrations to create the `notifications` table and triggers:
+
+```bash
+supabase db push
+```
+
+Or apply the SQL files in `supabase/migrations/` manually in the Supabase SQL editor.
 
 ### RLS notes
 

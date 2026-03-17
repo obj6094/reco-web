@@ -58,17 +58,23 @@ export default function RequestsPage() {
   const loadQueue = useCallback(async (uid: string) => {
     setLoadingQueue(true);
     setStatus("");
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+
     const { data: answeredRows } = await supabase
       .from("qna_answers")
-      .select("request_id")
+      .select("request_id, created_at")
       .eq("responder_id", uid);
     const answeredIds = new Set((answeredRows ?? []).map((r: any) => r.request_id));
+    const answeredToday = (answeredRows ?? []).filter((r: any) => r.created_at >= startOfToday).length;
+
     const { data: myRatings } = await supabase
       .from("qna_ratings")
-      .select("answer_id")
+      .select("answer_id, created_at")
       .eq("rater_id", uid)
       .eq("score", 1);
     const ratedAnswerIds = (myRatings ?? []).map((r: any) => r.answer_id).filter(Boolean);
+    const niceRecosToday = (myRatings ?? []).filter((r: any) => r.created_at >= startOfToday).length;
     const niceRecoHandledRequestIds = new Set<string>();
     if (ratedAnswerIds.length) {
       const { data: ratedAnswers } = await supabase
@@ -79,6 +85,10 @@ export default function RequestsPage() {
         if (row.request_id) niceRecoHandledRequestIds.add(row.request_id);
       });
     }
+
+    const usedToday = answeredToday + niceRecosToday;
+    const slotsRemaining = Math.max(0, 3 - usedToday);
+
     const { data: reqData, error } = await supabase
       .from("qna_requests")
       .select("id, prompt, created_at")
@@ -95,7 +105,8 @@ export default function RequestsPage() {
     const unanswered = reqs.filter(
       (r: any) => !answeredIds.has(r.id) && !niceRecoHandledRequestIds.has(r.id)
     );
-    const ids = unanswered.slice(0, 3).map((r: any) => r.id);
+    const toShow = unanswered.slice(0, slotsRemaining);
+    const ids = toShow.map((r: any) => r.id);
     let countByRequest: Record<string, number> = {};
     if (ids.length > 0) {
       const { data: ansData } = await supabase
@@ -106,7 +117,7 @@ export default function RequestsPage() {
         countByRequest[r.request_id] = (countByRequest[r.request_id] ?? 0) + 1;
       });
     }
-    const filtered = unanswered.slice(0, 3).map((r: any) => ({
+    const filtered = toShow.map((r: any) => ({
       id: r.id,
       prompt: r.prompt,
       created_at: r.created_at,
@@ -395,7 +406,9 @@ export default function RequestsPage() {
                   </Badge>
                 </div>
                 <CardDescription>
-                  Up to 3 open requests you haven&apos;t answered yet (oldest first). Answer from the detail page.
+                  {loadingQueue ? "Loading…" : queueForYou.length === 0
+                    ? "No requests right now. You can answer up to 3 per day. New ones arrive tomorrow."
+                    : `${queueForYou.length} ${queueForYou.length === 1 ? "person is" : "people are"} waiting for your reco`}
                 </CardDescription>
               </CardHeader>
               <CardContent>

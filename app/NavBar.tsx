@@ -6,34 +6,44 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Home, LogIn, Trophy, User, MessageCircle } from "lucide-react";
+import { Home, LogIn, Trophy, User, MessageCircle, Bell } from "lucide-react";
 import { motion } from "framer-motion";
 
 export function NavBar() {
   const router = useRouter();
   const pathname = usePathname();
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     async function checkUser() {
-      // 로그인 상태는 클라이언트에서 Supabase 세션으로 확인
       const { data } = await supabase.auth.getUser();
       setLoggedIn(!!data.user);
+      if (data.user?.id) {
+        const { count, error } = await supabase
+          .from("notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", data.user.id)
+          .is("read_at", null);
+        setUnreadCount(error ? 0 : (count ?? 0));
+      } else {
+        setUnreadCount(0);
+      }
     }
 
     checkUser();
 
-    // 로그인/로그아웃 시 네비 UI가 즉시 반영되도록 구독
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setLoggedIn(!!session?.user);
+      if (!session?.user) setUnreadCount(0);
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [pathname]);
 
   function scrollToTopOnNavigate() {
     requestAnimationFrame(() => {
@@ -124,6 +134,18 @@ export function NavBar() {
           </div>
 
           <div className="flex items-center gap-2">
+            {loggedIn ? (
+              <Link
+                href="/notifications"
+                className="relative inline-flex items-center justify-center rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
+              >
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 ? (
+                  <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500" />
+                ) : null}
+              </Link>
+            ) : null}
             {!loggedIn ? (
               <Button variant="secondary" size="sm" onClick={() => router.push("/login")}>
                 <LogIn className="h-4 w-4" />
