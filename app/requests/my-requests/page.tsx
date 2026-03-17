@@ -94,7 +94,7 @@ export default function MyRequestsPage() {
                     <Link href={`/requests/${item.id}`} className="block">
                       <Card className="cursor-pointer transition-colors hover:bg-accent/40">
                         <CardContent className="py-3">
-                          <div className="break-words text-[15px] font-semibold leading-relaxed tracking-tight">{item.prompt}</div>
+                          <div className="line-clamp-1 truncate break-words text-[15px] font-semibold leading-relaxed tracking-tight">{item.prompt}</div>
                           <div className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString()}</div>
                         </CardContent>
                       </Card>

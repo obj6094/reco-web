@@ -16,7 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
-import { ArrowRight, LogOut, Pencil, Star, Trophy, User } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ArrowRight, ChevronDown, LogOut, Pencil, Settings, Star, Trophy, User } from "lucide-react";
 
 type MySubmission = {
   id: string;
@@ -41,6 +42,7 @@ export default function ProfilePage() {
 
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     async function boot() {
@@ -234,27 +236,70 @@ export default function ProfilePage() {
                   </div>
                   <p className="text-xs text-muted-foreground">{`@${getDisplayName(nickname, username)}`}</p>
                 </div>
-                <div className="space-y-2">
-                  <Button type="button" variant="outline" size="sm" asChild>
-                    <Link href="/profile/username">Change login ID</Link>
+                <div className="relative">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSettingsOpen((prev) => !prev)}
+                    className="gap-2"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Settings
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", settingsOpen && "rotate-180")} />
                   </Button>
-                  <Button type="button" variant="outline" size="sm" asChild>
-                    <Link href="/profile/password">Change password</Link>
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    Your login ID stays the same even if you change your nickname.
-                  </p>
+                  {settingsOpen ? (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        aria-hidden
+                        onClick={() => setSettingsOpen(false)}
+                      />
+                      <div className="absolute left-0 top-full z-50 mt-1 min-w-[200px] rounded-lg border border-border bg-background py-1 shadow-lg">
+                        <Link
+                          href="/profile/username"
+                          onClick={() => setSettingsOpen(false)}
+                          className="block px-3 py-2 text-sm hover:bg-accent"
+                        >
+                          Change login ID
+                        </Link>
+                        <Link
+                          href="/profile/password"
+                          onClick={() => setSettingsOpen(false)}
+                          className="block px-3 py-2 text-sm hover:bg-accent"
+                        >
+                          Change password
+                        </Link>
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent"
+                          onClick={() => setSettingsOpen(false)}
+                        >
+                          Contact developer
+                        </button>
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent"
+                          onClick={() => setSettingsOpen(false)}
+                        >
+                          Developer&apos;s letter
+                        </button>
+                        <div className="my-1 border-t border-border" />
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-accent"
+                          onClick={() => {
+                            setSettingsOpen(false);
+                            handleLogout();
+                          }}
+                        >
+                          <LogOut className="mr-2 inline h-4 w-4" />
+                          Logout
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={handleLogout}
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout
-                </Button>
               </CardContent>
             </Card>
           </motion.div>

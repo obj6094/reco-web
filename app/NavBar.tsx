@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Home, LogIn, LogOut, Trophy, User, MessageCircle } from "lucide-react";
+import { Home, LogIn, Trophy, User, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
 export function NavBar() {
@@ -34,12 +34,6 @@ export function NavBar() {
       subscription.unsubscribe();
     };
   }, []);
-
-  async function handleLogout() {
-    // Supabase 세션 로그아웃 (키는 lib/supabaseClient.ts 에서 env 로 주입됨)
-    await supabase.auth.signOut();
-    router.replace("/");
-  }
 
   function scrollToTopOnNavigate() {
     requestAnimationFrame(() => {
@@ -130,17 +124,12 @@ export function NavBar() {
           </div>
 
           <div className="flex items-center gap-2">
-            {loggedIn ? (
-              <Button variant="outline" size="sm" onClick={handleLogout}>
-                <LogOut className="h-4 w-4" />
-                Logout
-              </Button>
-            ) : (
+            {!loggedIn ? (
               <Button variant="secondary" size="sm" onClick={() => router.push("/login")}>
                 <LogIn className="h-4 w-4" />
                 Login
               </Button>
-            )}
+            ) : null}
           </div>
         </div>
       </motion.nav>

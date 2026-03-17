@@ -40,6 +40,7 @@ type Answer = {
   id: string;
   responder_id: string;
   responderName: string;
+  responderSlug: string;
   trackId: string | null;
   trackName: string;
   artistName: string;
@@ -126,6 +127,7 @@ export default function RequestDetailPage() {
           id: a.id,
           responder_id: a.responder_id,
           responderName: "user",
+          responderSlug: "user",
           trackId: a.spotify_track_id ?? null,
           trackName: a.spotify_track_name,
           artistName: a.spotify_artist_name,
@@ -159,25 +161,36 @@ export default function RequestDetailPage() {
       setHandledByNiceReco(likedByMeSet.size > 0);
 
       const responderIds = [...new Set(mappedAnswers.map((a) => a.responder_id).filter(Boolean))] as string[];
-      const responderMap: Record<string, string> = {};
+      const responderMap: Record<string, { name: string; slug: string }> = {};
       if (responderIds.length) {
         const { data: profiles } = await supabase
           .from("profiles")
           .select("id, nickname, username")
           .in("id", responderIds);
         (profiles ?? []).forEach((p: any) => {
-          responderMap[p.id as string] = getDisplayName(p.nickname, p.username);
+          const slug = ((p.nickname ?? p.username ?? "user") as string).trim() || "user";
+          responderMap[p.id as string] = {
+            name: getDisplayName(p.nickname, p.username),
+            slug,
+          };
         });
       }
 
-      setAnswers(
-        mappedAnswers.map((ans) => ({
-          ...ans,
-          responderName: responderMap[ans.responder_id] ?? "user",
-          niceRecoCount: countByAnswer[ans.id] ?? 0,
-          likedByMe: likedByMeSet.has(ans.id),
-        }))
-      );
+      const enriched = mappedAnswers.map((ans) => {
+          const r = responderMap[ans.responder_id];
+          return {
+            ...ans,
+            responderName: r?.name ?? "user",
+            responderSlug: r?.slug ?? "user",
+            niceRecoCount: countByAnswer[ans.id] ?? 0,
+            likedByMe: likedByMeSet.has(ans.id),
+          };
+        });
+      const bestId = reqData.best_answer_id ?? null;
+      const sorted = bestId
+        ? [...enriched].sort((a, b) => (a.id === bestId ? -1 : b.id === bestId ? 1 : 0))
+        : enriched;
+      setAnswers(sorted);
 
       setLoading(false);
   }, [requestId, userId]);
@@ -669,7 +682,13 @@ export default function RequestDetailPage() {
                             {/* Second row: metadata */}
                             <div className="text-xs text-muted-foreground">
                               <span className="font-medium">{ans.niceRecoCount}</span>{" "}
-                              {ans.niceRecoCount === 1 ? "reco" : "recos"} • by @{ans.responderName}
+                              {ans.niceRecoCount === 1 ? "reco" : "recos"} • by{" "}
+                              <Link
+                                href={`/u/${encodeURIComponent(ans.responderSlug)}`}
+                                className="font-medium text-primary hover:underline"
+                              >
+                                @{ans.responderName}
+                              </Link>
                             </div>
 
                             {/* Third row: comment preview */}

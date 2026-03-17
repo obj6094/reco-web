@@ -19,7 +19,6 @@ const MOTION_VARIANTS = {
 export function BestRecosSection() {
   const [items, setItems] = useState<BestRecoItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [mobileExpanded, setMobileExpanded] = useState(false);
 
   const loadBestRecos = useCallback(async () => {
@@ -155,8 +154,6 @@ export function BestRecosSection() {
                 >
                   <BestRecoCard
                     item={item}
-                    expandedId={expandedId}
-                    onExpandToggle={setExpandedId}
                     variants={MOTION_VARIANTS}
                   />
                 </div>

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { EmptyState } from "@/components/EmptyState";
 import { BestRecosSection } from "@/components/BestRecosSection";
+import { cn } from "@/lib/utils";
 import { ArrowRight, MessageCirclePlus, Send, Inbox, CheckCircle, Music2 } from "lucide-react";
 
 type QueueRequest = {
@@ -35,6 +36,7 @@ type MyAnswerEntry = {
   trackName: string;
   artistName: string;
   mode: "answer" | "nice_reco";
+  isSelected?: boolean;
 };
 
 export default function RequestsPage() {
@@ -150,7 +152,7 @@ export default function RequestsPage() {
   const loadMyAnswers = useCallback(async (uid: string) => {
     const { data: ansRows, error: ansError } = await supabase
       .from("qna_answers")
-      .select("request_id, created_at, spotify_track_name, spotify_artist_name")
+      .select("id, request_id, created_at, spotify_track_name, spotify_artist_name")
       .eq("responder_id", uid)
       .order("created_at", { ascending: false });
 
@@ -177,7 +179,7 @@ export default function RequestsPage() {
       });
     }
 
-    const mergedRows: MyAnswerEntry[] = [];
+    const mergedRows: { request_id: string; prompt: string; created_at: string; trackName: string; artistName: string; mode: "answer" | "nice_reco"; answer_id?: string }[] = [];
     (ansRows ?? []).forEach((row: any) => {
       mergedRows.push({
         request_id: row.request_id,
@@ -186,6 +188,7 @@ export default function RequestsPage() {
         trackName: row.spotify_track_name ?? "Unknown track",
         artistName: row.spotify_artist_name ?? "Unknown artist",
         mode: "answer",
+        answer_id: row.id,
       });
     });
     (ratingRows ?? []).forEach((row: any) => {
@@ -209,11 +212,11 @@ export default function RequestsPage() {
     const reqIds = [...new Set(mergedRows.map((r) => r.request_id))];
     const { data: reqData } = await supabase
       .from("qna_requests")
-      .select("id, prompt, created_at")
+      .select("id, prompt, created_at, best_answer_id")
       .in("id", reqIds);
-    const byId: Record<string, { prompt: string; created_at: string }> = {};
+    const byId: Record<string, { prompt: string; created_at: string; best_answer_id: string | null }> = {};
     (reqData ?? []).forEach((r: any) => {
-      byId[r.id] = { prompt: r.prompt, created_at: r.created_at };
+      byId[r.id] = { prompt: r.prompt, created_at: r.created_at, best_answer_id: r.best_answer_id ?? null };
     });
     const seen = new Set<string>();
     setMyAnswers(
@@ -224,14 +227,19 @@ export default function RequestsPage() {
           seen.add(row.request_id);
           return true;
         })
-        .map((row) => ({
-          request_id: row.request_id,
-          prompt: byId[row.request_id]?.prompt ?? "",
-          created_at: row.created_at,
-          trackName: row.trackName,
-          artistName: row.artistName,
-          mode: row.mode,
-        }))
+        .map((row) => {
+          const req = byId[row.request_id];
+          const isSelected = row.mode === "answer" && row.answer_id && req?.best_answer_id === row.answer_id;
+          return {
+            request_id: row.request_id,
+            prompt: req?.prompt ?? "",
+            created_at: row.created_at,
+            trackName: row.trackName,
+            artistName: row.artistName,
+            mode: row.mode,
+            isSelected: !!isSelected,
+          };
+        })
     );
   }, []);
 
@@ -413,7 +421,7 @@ export default function RequestsPage() {
                           >
                             <Card className="h-full cursor-pointer transition-colors border-border/80 bg-muted/40 hover:bg-muted/60">
                             <CardHeader className="space-y-2">
-                              <CardTitle className="text-sm font-medium leading-snug line-clamp-2 break-words">
+                              <CardTitle className="text-sm font-medium leading-snug line-clamp-1 truncate break-words">
                                 {req.prompt}
                               </CardTitle>
                               <CardDescription className="text-xs">
@@ -486,7 +494,7 @@ export default function RequestsPage() {
                             <Card className="cursor-pointer transition-colors border-border/80 bg-muted/40 hover:bg-muted/60">
                               <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
                                 <div className="min-w-0 flex-1">
-                                  <p className="font-semibold leading-relaxed tracking-tight break-words">{req.prompt}</p>
+                                  <p className="line-clamp-1 truncate font-semibold leading-relaxed tracking-tight break-words">{req.prompt}</p>
                                   <p className="mt-1 text-xs text-muted-foreground">
                                     {new Date(req.created_at).toLocaleString()} · {req.answersCount} answer(s)
                                   </p>
@@ -537,10 +545,17 @@ export default function RequestsPage() {
                     {previewMyAnswers.map((entry) => (
                       <li key={entry.request_id}>
                         <Link href={`/requests/${entry.request_id}`} className="block">
-                          <Card className="cursor-pointer transition-colors border-border/80 bg-muted/40 hover:bg-muted/60">
+                          <Card
+                            className={cn(
+                              "cursor-pointer transition-colors hover:bg-muted/60",
+                              entry.isSelected
+                                ? "border-primary/60 bg-primary/5"
+                                : "border-border/80 bg-muted/40"
+                            )}
+                          >
                             <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
                               <div className="min-w-0 flex-1">
-                                <p className="line-clamp-2 font-semibold leading-relaxed tracking-tight break-words">{entry.prompt}</p>
+                                <p className="line-clamp-1 truncate font-semibold leading-relaxed tracking-tight break-words">{entry.prompt}</p>
                                 <p className="mt-1 text-xs text-muted-foreground">
                                   {entry.mode === "answer" ? "My Reco" : "My Nice Reco"}: {entry.trackName} - {entry.artistName}
                                 </p>

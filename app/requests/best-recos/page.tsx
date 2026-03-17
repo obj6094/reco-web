@@ -117,8 +117,12 @@ export default function BestRecosPage() {
             ) : (
               <ul className="space-y-2">
                 {items.map((item) => (
-                  <li key={item.id} className="rounded-xl border border-border/80 bg-muted/30 px-3 py-3">
-                    <div className="break-words text-sm font-semibold">{item.prompt}</div>
+                  <li key={item.id}>
+                    <Link
+                      href={`/requests/${encodeURIComponent(item.id)}`}
+                      className="block rounded-xl border border-border/80 bg-muted/30 px-3 py-3 transition-colors hover:bg-muted/50"
+                    >
+                      <div className="line-clamp-1 truncate break-words text-sm font-semibold">{item.prompt}</div>
                     <div className="text-xs text-muted-foreground mt-1">
                       {item.trackName} - {item.artistName}
                     </div>
@@ -134,6 +138,7 @@ export default function BestRecosPage() {
                         </Link>
                       </span>
                     </div>
+                    </Link>
                   </li>
                 ))}
               </ul>

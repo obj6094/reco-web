@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { ArrowLeft } from "lucide-react";
 
 type Item = {
@@ -15,6 +16,7 @@ type Item = {
   trackName: string;
   artistName: string;
   mode: "answer" | "nice_reco";
+  isSelected?: boolean;
 };
 
 export default function MyAnswersPage() {
@@ -33,7 +35,7 @@ export default function MyAnswersPage() {
 
       const { data: answerRows } = await supabase
         .from("qna_answers")
-        .select("request_id, created_at, spotify_track_name, spotify_artist_name")
+        .select("id, request_id, created_at, spotify_track_name, spotify_artist_name")
         .eq("responder_id", uid)
         .order("created_at", { ascending: false });
 
@@ -60,7 +62,7 @@ export default function MyAnswersPage() {
         });
       }
 
-      const mergedRows: Item[] = [];
+      const mergedRows: { request_id: string; created_at: string; prompt: string; trackName: string; artistName: string; mode: "answer" | "nice_reco"; answer_id?: string }[] = [];
       (answerRows ?? []).forEach((row: any) => {
         mergedRows.push({
           request_id: row.request_id,
@@ -69,6 +71,7 @@ export default function MyAnswersPage() {
           trackName: row.spotify_track_name ?? "Unknown track",
           artistName: row.spotify_artist_name ?? "Unknown artist",
           mode: "answer",
+          answer_id: row.id,
         });
       });
       (ratingRows ?? []).forEach((row: any) => {
@@ -93,12 +96,12 @@ export default function MyAnswersPage() {
 
       const { data: reqs } = await supabase
         .from("qna_requests")
-        .select("id, prompt")
+        .select("id, prompt, best_answer_id")
         .in("id", reqIds);
 
-      const byId: Record<string, string> = {};
+      const byId: Record<string, { prompt: string; best_answer_id: string | null }> = {};
       (reqs ?? []).forEach((r: any) => {
-        byId[r.id] = r.prompt;
+        byId[r.id] = { prompt: r.prompt, best_answer_id: r.best_answer_id ?? null };
       });
 
       const seen = new Set<string>();
@@ -109,14 +112,19 @@ export default function MyAnswersPage() {
           seen.add(row.request_id);
           return true;
         })
-        .map((row) => ({
-          request_id: row.request_id,
-          created_at: row.created_at,
-          prompt: byId[row.request_id] ?? "",
-          trackName: row.trackName,
-          artistName: row.artistName,
-          mode: row.mode,
-        }));
+        .map((row) => {
+          const req = byId[row.request_id];
+          const isSelected = row.mode === "answer" && row.answer_id && req?.best_answer_id === row.answer_id;
+          return {
+            request_id: row.request_id,
+            created_at: row.created_at,
+            prompt: req?.prompt ?? "",
+            trackName: row.trackName,
+            artistName: row.artistName,
+            mode: row.mode,
+            isSelected: !!isSelected,
+          };
+        });
 
       setItems(mapped);
       setLoading(false);
@@ -149,9 +157,14 @@ export default function MyAnswersPage() {
                 {items.map((item) => (
                   <li key={item.request_id}>
                     <Link href={`/requests/${item.request_id}`} className="block">
-                      <Card className="cursor-pointer transition-colors hover:bg-accent/40">
+                      <Card
+                        className={cn(
+                          "cursor-pointer transition-colors hover:bg-accent/40",
+                          item.isSelected && "border-primary/60 bg-primary/5"
+                        )}
+                      >
                         <CardContent className="py-3">
-                          <div className="text-[15px] font-semibold leading-relaxed tracking-tight">{item.prompt}</div>
+                          <div className="line-clamp-1 truncate text-[15px] font-semibold leading-relaxed tracking-tight">{item.prompt}</div>
                           <div className="mt-1 text-xs text-muted-foreground">
                             {item.mode === "answer" ? "My Reco" : "My Nice Reco"}: {item.trackName} - {item.artistName}
                           </div>
