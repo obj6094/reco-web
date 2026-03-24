@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { Flame, Sparkles, Trophy, Users, ArrowRight, Lock, Music2 } from "lucide-react";
+import { Flame, Trophy, Users, ArrowRight, Lock, Music2 } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
 import { BestRecosSection } from "@/components/BestRecosSection";
 
@@ -378,21 +378,11 @@ export default function HomePage() {
         {/* Hero */}
         <div className="grid gap-4 sm:gap-6 md:grid-cols-2 md:items-center">
           <div className="space-y-3 sm:space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary" className="gap-1">
-                <Sparkles className="h-3.5 w-3.5" />
-                Weekly picks
-              </Badge>
-              <Badge variant="secondary" className="gap-1">
-                <Users className="h-3.5 w-3.5" />
-                Real people, real taste
-              </Badge>
-            </div>
             <h1 className="text-2xl font-extrabold tracking-tight sm:text-4xl md:text-5xl">
-              Discover music through real people.
+              Recommend your favorite music to poeple.
             </h1>
             <p className="max-w-xl text-sm leading-6 text-muted-foreground">
-              Recommend songs, vote together, and find your next favorite track.
+              Recommend songs, discover songs with people
             </p>
             <div className="flex flex-wrap gap-2 [&>a]:min-h-[44px] [&>button]:min-h-[44px]">
               {userId ? (
@@ -434,41 +424,44 @@ export default function HomePage() {
             transition={{ duration: 0.3, ease: "easeOut" }}
             className="hidden md:block"
           >
-            {/* abstract illustration */}
-            <Card className="relative overflow-hidden">
-              <CardContent className="p-0">
-                <div className="relative h-56 w-full bg-card">
-                  <svg
-                    className="absolute inset-0 h-full w-full"
-                    viewBox="0 0 640 260"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <circle cx="140" cy="120" r="90" fill="hsl(var(--primary))" fillOpacity="0.12" />
-                    <circle cx="260" cy="140" r="120" fill="hsl(var(--primary))" fillOpacity="0.08" />
-                    <circle cx="450" cy="110" r="95" fill="hsl(var(--primary))" fillOpacity="0.10" />
-                    <path
-                      d="M60 210 C 160 150, 240 260, 360 200 C 470 150, 540 235, 610 190"
-                      stroke="hsl(var(--primary))"
-                      strokeOpacity="0.35"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M60 210 C 160 170, 240 240, 360 215 C 470 185, 540 215, 610 205"
-                      stroke="hsl(var(--primary))"
-                      strokeOpacity="0.20"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <div className="absolute left-5 top-5 space-y-2">
-                    <div className="text-sm font-semibold">Reco</div>
-                    <div className="text-xs text-muted-foreground">
-                      Weekly challenge 쨌 Voting 쨌 QnA
-                    </div>
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" />
+                  Top Curators
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {loadingCurators ? (
+                  <div className="text-sm text-muted-foreground">Loading...</div>
+                ) : topCurators.length === 0 ? (
+                  <EmptyState
+                    icon={Users}
+                    title="No curators yet"
+                    description="Join challenges and answer QnA requests to appear here."
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    {topCurators.map((c, index) => (
+                      <Link
+                        key={c.userId}
+                        href={(c.nickname ?? c.username) ? `/u/${encodeURIComponent((c.nickname ?? c.username) as string)}` : "#"}
+                        className="flex min-h-[48px] items-center justify-between gap-3 rounded-2xl border border-border bg-accent/40 px-3 py-3 text-sm transition-colors hover:bg-accent/60 active:bg-accent/70"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="w-5 text-xs text-muted-foreground">#{index + 1}</span>
+                          <div className="min-w-0">
+                            <div className="truncate font-semibold">{c.nickname}</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xs text-muted-foreground">Reco Score</div>
+                          <div className="text-lg font-extrabold text-primary">{c.score}</div>
+                        </div>
+                      </Link>
+                    ))}
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>
@@ -483,7 +476,7 @@ export default function HomePage() {
             </CardHeader>
           </Card>
         ) : (
-          <div className="grid gap-4 sm:gap-5 lg:grid-cols-3">
+          <div className="grid gap-4 sm:gap-5">
             {/* Weekly challenge + trending combined */}
             <motion.div whileHover={{ scale: 1.01 }} transition={{ duration: 0.15 }} className="lg:col-span-2">
               <Card className="h-full">
@@ -586,52 +579,6 @@ export default function HomePage() {
               </Card>
             </motion.div>
 
-            {/* Top curators */}
-            <motion.div whileHover={{ scale: 1.01 }} transition={{ duration: 0.15 }}>
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-primary" />
-                    Top Curators
-                  </CardTitle>
-                  <CardDescription>
-                    Reco Score = Best Reco count + total votes received on submissions
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {loadingCurators ? (
-                    <div className="text-sm text-muted-foreground">Loading...</div>
-                  ) : topCurators.length === 0 ? (
-                    <EmptyState
-                      icon={Users}
-                      title="No curators yet"
-                      description="Join challenges and answer QnA requests to appear here."
-                    />
-                  ) : (
-                    <div className="space-y-2">
-                      {topCurators.map((c, index) => (
-                        <Link
-                          key={c.userId}
-                          href={(c.nickname ?? c.username) ? `/u/${encodeURIComponent((c.nickname ?? c.username) as string)}` : "#"}
-                          className="flex min-h-[48px] items-center justify-between gap-3 rounded-2xl border border-border bg-accent/40 px-3 py-3 text-sm transition-colors hover:bg-accent/60 active:bg-accent/70"
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="w-5 text-xs text-muted-foreground">#{index + 1}</span>
-                            <div className="min-w-0">
-                              <div className="truncate font-semibold">{c.nickname}</div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-xs text-muted-foreground">Reco Score</div>
-                            <div className="text-lg font-extrabold text-primary">{c.score}</div>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
           </div>
         )}
 
@@ -639,7 +586,7 @@ export default function HomePage() {
         <Card>
           <CardHeader>
             <CardTitle>Past Challenges</CardTitle>
-            <CardDescription>Previous challenges by theme and period.</CardDescription>
+            
           </CardHeader>
           <CardContent>
             {past.length === 0 ? (

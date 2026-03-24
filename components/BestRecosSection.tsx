@@ -123,7 +123,7 @@ export function BestRecosSection() {
     <Card>
       <CardHeader>
         <CardTitle>Best Recos from Requests</CardTitle>
-        <CardDescription>Best Recos selected from QnA requests.</CardDescription>
+        
       </CardHeader>
       <CardContent>
         {loading ? (

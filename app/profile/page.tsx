@@ -44,6 +44,8 @@ export default function ProfilePage() {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showSuccessFormula, setShowSuccessFormula] = useState(false);
+  const [showScoreFormula, setShowScoreFormula] = useState(false);
 
   useEffect(() => {
     async function boot() {
@@ -214,9 +216,6 @@ export default function ProfilePage() {
       <div className="mx-auto w-full max-w-5xl space-y-5 sm:space-y-6">
         <div className="space-y-2">
           <h1 className="text-2xl font-extrabold tracking-tight">Profile</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage your profile and see your Reco Score.
-          </p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -227,7 +226,6 @@ export default function ProfilePage() {
                   <User className="h-4 w-4 text-primary" />
                   Account
                 </CardTitle>
-                <CardDescription>Your profile. Nickname is your display name.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="space-y-1">
@@ -319,15 +317,33 @@ export default function ProfilePage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Star className="h-4 w-4 text-primary" />
-                  Your reco success rate
+                  Reco success rate
                 </CardTitle>
-                <CardDescription>
-                  Request answers selected as Best Reco ÷ total answers
-                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-extrabold tracking-tight text-primary">
+                <div className="flex items-center gap-2 text-3xl font-extrabold tracking-tight text-primary">
                   {recoSuccessRate ?? (loading ? "…" : "0")}%
+                  <span
+                    className="relative inline-flex self-start"
+                    onMouseEnter={() => setShowSuccessFormula(true)}
+                    onMouseLeave={() => setShowSuccessFormula(false)}
+                  >
+                    <button
+                      type="button"
+                      aria-label="Reco success rate formula"
+                      onClick={() => setShowSuccessFormula((prev) => !prev)}
+                      onFocus={() => setShowSuccessFormula(true)}
+                      onBlur={() => setShowSuccessFormula(false)}
+                      className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-primary/40 text-[9px] font-bold leading-none text-primary"
+                    >
+                      !
+                    </button>
+                    {showSuccessFormula ? (
+                      <div className="absolute left-1/2 top-[calc(100%+6px)] z-20 w-64 -translate-x-1/2 rounded-lg border border-border bg-popover px-2.5 py-2 text-xs font-medium text-popover-foreground shadow-md">
+                        Reco success rate is the percentage of your request answers that were chosen as Best Reco.
+                      </div>
+                    ) : null}
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -344,13 +360,31 @@ export default function ProfilePage() {
                   <Star className="h-4 w-4 text-primary" />
                   Reco Score
                 </CardTitle>
-                <CardDescription>
-                    Reco Score = (# times your answers were chosen as best) + (total votes on your challenge submissions)
-                </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-                <div className="text-4xl font-extrabold tracking-tight text-primary">
+                <div className="flex items-center gap-2 text-4xl font-extrabold tracking-tight text-primary">
                   {recoScore ?? (loading ? "…" : "0")}
+                  <span
+                    className="relative inline-flex self-start"
+                    onMouseEnter={() => setShowScoreFormula(true)}
+                    onMouseLeave={() => setShowScoreFormula(false)}
+                  >
+                    <button
+                      type="button"
+                      aria-label="Reco score formula"
+                      onClick={() => setShowScoreFormula((prev) => !prev)}
+                      onFocus={() => setShowScoreFormula(true)}
+                      onBlur={() => setShowScoreFormula(false)}
+                      className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-primary/40 text-[9px] font-bold leading-none text-primary"
+                    >
+                      !
+                    </button>
+                    {showScoreFormula ? (
+                      <div className="absolute left-1/2 top-[calc(100%+6px)] z-20 w-72 -translate-x-1/2 rounded-lg border border-border bg-popover px-2.5 py-2 text-xs font-medium text-popover-foreground shadow-md">
+                        Reco Score combines your QnA and Challenge impact: Best Reco picks on your answers plus total votes on your challenge submissions.
+                      </div>
+                    ) : null}
+                  </span>
                 </div>
                 <Button variant="outline" asChild className="min-h-[44px]">
                   <Link href="/challenge">
@@ -371,7 +405,6 @@ export default function ProfilePage() {
               </CardTitle>
               <Badge variant="secondary">{submissions.length}</Badge>
             </div>
-            <CardDescription>Open your full challenge records in a dedicated page.</CardDescription>
           </CardHeader>
           <CardContent>
             {loading && !submissions.length ? (

@@ -552,7 +552,7 @@ export default function ChallengePage() {
                 {challengeDday(challenge.ends_at)}
               </Badge>
               <p className="text-sm text-muted-foreground">
-                Submit your track here. Voting is available in the submissions list below.
+                Recommend your track here. Voting is available in the submissions list below.
               </p>
             </div>
           ) : (
@@ -943,7 +943,7 @@ export default function ChallengePage() {
               <Trophy className="h-4 w-4 text-primary" />
               Past Challenges
             </CardTitle>
-            <CardDescription>Previous challenges and their date ranges.</CardDescription>
+            
           </CardHeader>
           <CardContent>
             {loadingPast ? (

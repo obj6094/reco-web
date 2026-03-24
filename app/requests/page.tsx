@@ -341,9 +341,6 @@ export default function RequestsPage() {
       <div className="mx-auto w-full max-w-5xl space-y-5 sm:space-y-6">
         <div className="space-y-2">
           <h1 className="text-2xl font-extrabold tracking-tight">Requests</h1>
-          <p className="text-sm text-muted-foreground">
-            Ask for a Reco or answer others&apos; requests. Your requests and answers appear below.
-          </p>
         </div>
 
         {!authChecked ? (
@@ -396,7 +393,7 @@ export default function RequestsPage() {
                       id="request-prompt"
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
-                      placeholder="e.g. A song for late-night coding."
+                      placeholder="A song to listen to at the beach on a gloomy summer vacation day, cloudy, windy, and a little chilly."
                       className="min-h-[120px] rounded-2xl border-border/70 bg-accent/20 px-4 py-3 text-[15px] leading-7 tracking-[0.01em] placeholder:text-muted-foreground/75"
                     />
                     <Button type="submit" disabled={creating}>
@@ -495,7 +492,7 @@ export default function RequestsPage() {
                   </CardTitle>
                   <Badge variant="secondary">{filteredMyRequests.length}</Badge>
                 </div>
-                <CardDescription>Requests you created. Open one to choose a Best Reco.</CardDescription>
+                <CardDescription>Requests you created. Choose a Best Reco</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="mb-3 flex flex-wrap gap-2 [&>button]:min-h-[44px]">
@@ -574,7 +571,7 @@ export default function RequestsPage() {
                   </CardTitle>
                   <Badge variant="secondary">{myAnswers.length}</Badge>
                 </div>
-                <CardDescription>Requests you answered. Open to see if your Reco was chosen.</CardDescription>
+                
               </CardHeader>
               <CardContent>
                 {loadingMine && !myAnswers.length ? (
